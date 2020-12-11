@@ -20,50 +20,66 @@ data World = World {wcolumns :: Int, wrows :: Int, wseats :: Array Int (Array In
 instance Show World where
   show (World _ _ l) = unlines $ elems $ elems . fmap encode <$> l
 
+inWRange :: World -> Int -> Int -> Bool
+inWRange (World numcols numrows _) x y = and [ x >= 0 , x < numcols , y >= 0 , y < numrows]
 
 seatAt :: World -> Int -> Int -> Seat
-seatAt (World numcols numrows seats) x y
-  | x < 0 || x >= numcols ||
-    y < 0 || y >= numrows = Floor
-  | otherwise = seats ! y ! x
+seatAt w x y
+  | inWRange w x y = wseats w ! y ! x
+  | otherwise = Floor
+
+inSight :: World -> Int -> Int -> Int
+inSight world x y = hits
+  where speeds = [(vx,vy)|vx<-[-1..1],vy<-[-1..1],(vx,vy) /= (0,0)]
+        hits = sum $ hit (x,y) <$> speeds
+        nextPos (px,py) (vx,vy) = (px+vx,py+vy)
+        hit p v
+          | inr = case seatAt world nx ny of
+              Occupied -> 1
+              Empty    -> 0
+              _        -> hit (nx,ny) v
+          | otherwise = 0
+          where (nx,ny) = nextPos p v
+                inr = inWRange world nx ny
+
 
 adjacents :: World -> Int -> Int -> Int
 adjacents world x y = k
   where k = length [s | c <- [x-1..x+1], l <- [y-1..y+1],let s = seatAt world c l,s == Occupied ,(c,l) /= (x,y)]
 
-nextSeat :: World -> Int -> Int -> Seat
-nextSeat w x y = case seatAt w x y of
+nextSeat :: Int -> (World -> Int -> Int -> Int) -> World -> Int -> Int -> Seat
+nextSeat maxn calc w x y = case seatAt w x y of
   Floor -> Floor
   Empty
     | n == 0 -> Occupied
     | otherwise -> Empty
   Occupied
-    | n >= 4 -> Empty
+    | n >= maxn -> Empty
     | otherwise -> Occupied
-  where n = adjacents w x y
+  where n = calc w x y
 
 -- >>> solve "L.LL.LL.LL\nLLLLLLL.LL\nL.L.L..L..\nLLLL.LL.LL\nL.LL.LL.LL\nL.LLLLL.LL\n..L.L.....\nLLLLLLLLLL\nL.LLLLLL.L\nL.LLLLL.LL"
--- (37,2)
-
-solve :: [Char] -> (Int,Int)
-solve s = (first ,2  )
+-- (37,26)
+solve :: String -> (Int,Int)
+solve s = (first,total final2)
   where first = total final
         parseLine = fmap decode
         world = createWorld $ parseLine <$> lines s
-        final = stationary world
+        final = stationary 4 adjacents world
+        final2 = stationary 5 inSight world
         total w = sum $ sum.fmap (\seat -> if seat == Occupied then 1 else 0) <$> wseats w
 
-stationary :: World -> World
-stationary w
+stationary :: Int -> (World -> Int -> Int -> Int) -> World -> World
+stationary maxn calc w
   | w == nw = w
-  | otherwise = stationary nw
-  where nw = nextWorld w
+  | otherwise = stationary maxn calc nw
+  where nw = nextWorld maxn calc w
 
-nextWorld :: World -> World
-nextWorld w = createWorld nw where
+nextWorld :: Int -> (World -> Int -> Int -> Int) -> World -> World
+nextWorld maxn calc w = createWorld nw where
   numcols = wcolumns w
   numrows = wrows w
-  nl y = [s|x<-[0..numcols-1],let s = nextSeat w x y ]
+  nl y = [s|x<-[0..numcols-1],let s = nextSeat maxn calc w x y ]
   nw = [l| y<-[0..numrows-1],let l = nl y]
 
 createWorld :: [[Seat]] -> World
