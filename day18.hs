@@ -7,6 +7,7 @@ module Main where
 
 import Control.Monad.Combinators (choice)
 import Control.Monad.Combinators.Expr
+import Data.Either (fromRight)
 import Data.Void
 import Text.Megaparsec
   ( Parsec,
@@ -58,23 +59,36 @@ infixL :: String -> (Expression -> Expression -> Expression) -> Operator Parser 
 infixL name f = InfixL (f <$ symbol name)
 
 operatorTable :: [[Operator Parser Expression]]
-operatorTable = [[infixL "+" (Op Sum), infixL "*" (Op Sum)]]
+operatorTable = [[infixL "+" (Op Sum), infixL "*" (Op Multiply)]]
 
 expParser :: Parser Expression
 expParser = makeExprParser pTerm operatorTable
 
--- >>> runParser expParser "" "2+1 +3+ 4"
--- Right (Op Sum (Op Sum (Op Sum (Leaf 2) (Leaf 1)) (Leaf 3)) (Leaf 4))
+parseInput = runParser expParser ""
 
--- >>> solve "2 * 3 + (4 * 5)"
--- (Right (Op Sum (Op Sum (Leaf 2) (Leaf 3)) (Op Sum (Leaf 4) (Leaf 5))),2)
+eval :: Expression -> Int
+eval e = case e of
+  Leaf n -> n
+  Op Sum e1 e2 -> eval e1 + eval e2
+  Op Multiply e1 e2 -> eval e1 * eval e2
+  Inner e1 -> eval e1
 
--- solve :: String -> (Int, Int)
+-- >>> (\x->(eval x,x)) <$> parseInput "3+2*3"
+-- Right (15,Op Multiply (Op Sum (Leaf 3) (Leaf 2)) (Leaf 3))
+
+-- >>> solve "2 * 3 + (4 * 5)\n5 + (8 * 3 + 9 + 3 * 4 * 3)"
+-- (Right 463,2)
+
+solve :: String -> (Int, Int)
 solve s = (first, second)
   where
-    first = input
+    first = fromRight 0 results
     second = 2
-    input = runParser expParser "" s
+    results = sum . fmap eval <$> input
+    input = traverse (runParser expParser "") $ lines s
+
+-- >>> solve <$> readFile "input/day18.txt"
+-- (800602729153,2)
 
 main :: IO ()
-main = readFile "input/day17.txt" >>= print . solve
+main = readFile "input/day18.txt" >>= print . solve
