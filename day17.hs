@@ -1,6 +1,8 @@
 #!/usr/bin/env stack
 -- stack --resolver lts-10.2 script
 
+{-# OPTIONS_GHC -Wall #-}
+
 module Main where
 
 import qualified Data.Map.Strict as M
@@ -93,13 +95,11 @@ next4 w = M.fromList cells
 -- >>> solve ".#.\n..#\n###"
 -- (112,848)
 
--- solve :: String -> (Int, Int)
+solve :: String -> (Int, Int)
 solve s = (first, second)
   where
     first = sum $ snd <$> M.toList (go input next 6)
-    go w f n
-      | n == 0 = w
-      | otherwise = go (f w) f $ n - 1
+    go w f n = foldr1 (\_ x -> f x) $ replicate (n + 1) w
     second = sum $ snd <$> M.toList (go (parse4 s) next4 6)
     input = parse s
 
