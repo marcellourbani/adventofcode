@@ -9,24 +9,17 @@ import Control.Monad.Combinators (choice)
 import Control.Monad.Combinators.Expr
 import Data.Either (fromRight)
 import Data.Void
-import Text.Megaparsec
-  ( Parsec,
-    between,
-    empty,
-    many,
-    runParser,
-    some,
-    (<?>),
-    (<|>),
-  )
+import Text.Megaparsec (Parsec, between, empty, runParser, some)
 import Text.Megaparsec.Char
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void String
 
-data Operation = Sum | Multiply deriving (Show)
-
-data Expression = Leaf Int | Op Operation Expression Expression | Inner Expression
+data Expression
+  = Leaf Int
+  | Sum Expression Expression
+  | Multiply Expression Expression
+  | Inner Expression
   deriving (Show)
 
 sc :: Parser ()
@@ -43,6 +36,12 @@ symbol = L.symbol sc
 pInt :: Parser Expression
 pInt = Leaf <$> lexeme L.decimal
 
+infixL :: String -> (Expression -> Expression -> Expression) -> Operator Parser Expression
+infixL name f = InfixL (f <$ symbol name)
+
+infixN :: String -> (Expression -> Expression -> Expression) -> Operator Parser Expression
+infixN name f = InfixN (f <$ symbol name)
+
 intParser :: Parser Expression
 intParser = L.lexeme sc $ do
   s <- some digitChar
@@ -55,40 +54,56 @@ pTerm =
       between (symbol "(") (symbol ")") expParser
     ]
 
-infixL :: String -> (Expression -> Expression -> Expression) -> Operator Parser Expression
-infixL name f = InfixL (f <$ symbol name)
-
 operatorTable :: [[Operator Parser Expression]]
-operatorTable = [[infixL "+" (Op Sum), infixL "*" (Op Multiply)]]
+operatorTable =
+  [ [infixL "+" Sum, infixL "*" Multiply]
+  ]
 
 expParser :: Parser Expression
 expParser = makeExprParser pTerm operatorTable
 
-parseInput = runParser expParser ""
+pTerm2 :: Parser Expression
+pTerm2 =
+  choice
+    [ pInt,
+      between (symbol "(") (symbol ")") expParser2
+    ]
+
+operatorTable2 :: [[Operator Parser Expression]]
+operatorTable2 =
+  [ [infixL "+" Sum],
+    [infixL "*" Multiply]
+  ]
+
+expParser2 :: Parser Expression
+expParser2 = makeExprParser pTerm2 operatorTable2
 
 eval :: Expression -> Int
 eval e = case e of
   Leaf n -> n
-  Op Sum e1 e2 -> eval e1 + eval e2
-  Op Multiply e1 e2 -> eval e1 * eval e2
+  Sum e1 e2 -> eval e1 + eval e2
+  Multiply e1 e2 -> eval e1 * eval e2
   Inner e1 -> eval e1
 
--- >>> (\x->(eval x,x)) <$> parseInput "3+2*3"
--- Right (15,Op Multiply (Op Sum (Leaf 3) (Leaf 2)) (Leaf 3))
+pp :: Expression -> String
+pp e = case e of
+  Leaf n -> show n
+  Sum e1 e2 -> "(" ++ pp e1 ++ "+" ++ pp e2 ++ ")"
+  Multiply e1 e2 -> '(' : pp e1 ++ "*" ++ pp e2 ++ ")"
+  Inner e1 -> "(" ++ pp e1 ++ ")"
 
 -- >>> solve "2 * 3 + (4 * 5)\n5 + (8 * 3 + 9 + 3 * 4 * 3)"
--- (Right 463,2)
+-- (463,1491)
 
 solve :: String -> (Int, Int)
 solve s = (first, second)
   where
     first = fromRight 0 results
-    second = 2
+    second = fromRight 0 results2
     results = sum . fmap eval <$> input
     input = traverse (runParser expParser "") $ lines s
-
--- >>> solve <$> readFile "input/day18.txt"
--- (800602729153,2)
+    results2 = sum . fmap eval <$> input2
+    input2 = traverse (runParser expParser2 "") $ lines s
 
 main :: IO ()
 main = readFile "input/day18.txt" >>= print . solve
