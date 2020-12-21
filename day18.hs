@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-10.2 script
+-- stack --resolver lts-12.21 script
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -31,8 +31,6 @@ lexeme = L.lexeme sc
 symbol :: String -> Parser String
 symbol = L.symbol sc
 
--- >>> runParser sc "" " 3 * 1"
--- Right ()
 pInt :: Parser Expression
 pInt = Leaf <$> lexeme L.decimal
 
