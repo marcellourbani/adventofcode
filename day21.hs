@@ -5,7 +5,8 @@
 
 module Main where
 
-import qualified Data.Map as M
+import Data.List (sortOn)
+import Data.List.Compat (intercalate)
 import qualified Data.Set as S
 import Text.Regex.TDFA
 
@@ -23,16 +24,17 @@ parse = fmap go . lines
         allergens = S.fromList $(filter (/= ',')) <$> words (x !! 1)
 
 -- >>> solve "mxmxvkd kfcds sqjhc nhms (contains dairy, fish)\ntrh fvjkl sbzzf mxmxvkd (contains dairy)\nsqjhc fvjkl (contains soy)\nsqjhc mxmxvkd sbzzf (contains fish)"
+-- (5,"mxmxvkd,sqjhc,fvjkl")
 
-solve :: String -> (Int, Int)
+solve :: String -> (Int, String)
 solve s = (first, second)
   where
     first = sum [1 | fs <- fst <$> input, f <- S.toList fs, not $ S.member f potentialAllergens]
-    second = 2
+    second = intercalate "," $ foldl1 (++) $ S.toList . snd <$> afoods
     input = parse s
-    potentialAllergens = S.unions $ snd <$> amap
+    potentialAllergens = S.unions $ snd <$> afoods
     possibleFood allergen = foldl1 S.intersection [f | (f, as) <- input, S.member allergen as]
-    amap = simplify [(k, possibleFood k) | k <- S.toList $ foldl1 S.union $ snd <$> input]
+    afoods = sortOn fst $ simplify [(k, possibleFood k) | k <- S.toList $ foldl1 S.union $ snd <$> input]
     simplify al
       | null simplified = al
       | otherwise = simplify $ simplified ++ singlekv
