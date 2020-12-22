@@ -22,7 +22,7 @@ parse s = rawTiles
 solve :: String -> (Int, Int)
 solve s = (first, second)
   where
-    first = 1
+    first = length $ parse s
     second = 2
 
 main :: IO ()
