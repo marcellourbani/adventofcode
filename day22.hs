@@ -33,7 +33,7 @@ solve s = (first, second)
             okx = length xs >= x1
             oky = length ys >= y1
             winner
-              | okx && oky = fst $ recgame xs ys S.empty S.empty
+              | okx && oky = fst $ recgame (take x1 xs) (take y1 ys) S.empty S.empty
               | x > y = 1
               | otherwise = 2
 
