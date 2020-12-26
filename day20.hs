@@ -5,8 +5,10 @@
 
 module Main where
 
+import Data.Bits ((.&.))
 import Data.Foldable (find)
-import Data.List (foldl1', transpose)
+import Data.List (foldl1', tails, transpose)
+import Data.List.Compat (findIndices)
 import Data.List.Split (splitOn)
 import qualified Data.Map as M
 import qualified Data.Set as S
@@ -39,13 +41,13 @@ topNum :: Tile -> Int
 topNum = boolsToInt . head . ttab
 
 -- >>> solve "Tile 2311:\n..##.#..#.\n##..#.....\n#...##..#.\n####.#...#\n##.##.###.\n##...#.###\n.#.#.#..##\n..#....#..\n###...#.#.\n..###..###\n\nTile 1951:\n#.##...##.\n#.####...#\n.....#..##\n#...######\n.##.#....#\n.###.#####\n###.##.##.\n.###....#.\n..#.#..#.#\n#...##.#..\n\nTile 1171:\n####...##.\n#..##.#..#\n##.#..#.#.\n.###.####.\n..###.####\n.##....##.\n.#...####.\n#.##.####.\n####..#...\n.....##...\n\nTile 1427:\n###.##.#..\n.#..#.##..\n.#.##.#..#\n#.#.#.##.#\n....#...##\n...##..##.\n...#.#####\n.#.####.#.\n..#..###.#\n..##.#..#.\n\nTile 1489:\n##.#.#....\n..##...#..\n.##..##...\n..#...#...\n#####...#.\n#..#.#.#.#\n...#.#.#..\n##.#...##.\n..##.##.##\n###.##.#..\n\nTile 2473:\n#....####.\n#..#.##...\n#.##..#...\n######.#.#\n.#...#.#.#\n.#########\n.###.#..#.\n########.#\n##...##.#.\n..###.#.#.\n\nTile 2971:\n..#.#....#\n#...###...\n#.#.###...\n##.##..#..\n.#####..##\n.#..####.#\n#..#.#..#.\n..####.###\n..#.#.###.\n...#.#.#.#\n\nTile 2729:\n...#.#.#.#\n####.#....\n..#.#.....\n....#..#.#\n.##..##.#.\n.#.####...\n####.#.#..\n##.####...\n##..#.##..\n#.##...##.\n\nTile 3079:\n#.#.#####.\n.#..######\n..#.......\n######....\n####.#..#.\n.#...#.##.\n#.#####.##\n..#.###...\n..#.......\n..#.###..."
--- (20899048083289,[2,2,1,1,1,1,2,2,1,2,1,1,2,2,2,1,2,1,1,2,2,2,2,1,2,2,1,1,2,1,1,1,1,2,2,1,2,2,2,1,2,1,1,1,1,2,1,2])
+-- (20899048083289,197)
 
 -- solve :: String -> (Int, Int)
 solve s = (first, second)
   where
     first = product $ fst <$> corners
-    second = length . snd <$> M.toList edgeMap
+    second = countTrues (ttab picture) - (numMonsters * countTrues monster)
     tiles = parse s
     possibleEdges (Tile ti t) = (ti, S.fromList $ topNum . orientTile (Tile ti t) <$> orientations)
     tileEdges = possibleEdges <$> tiles
@@ -82,6 +84,26 @@ solve s = (first, second)
         mid = tail . init
         clearTile (Tile i t) = Tile i (mid $ mid <$> t)
         grid = map clearTile <$> map line (column firstCorner)
+    monster = map (== '#') <$> lines "                  # \n#    ##    ##    ###\n #  #  #  #  #  #   "
+    imonster = boolsToInt <$> monster
+    (mlen, mhei) = (length $head monster, length monster)
+    matchline ml l = mlen == length chu && hasml
+      where
+        chu = take mlen l
+        hasml = ml == boolsToInt chu .&. ml
+    matinline ml l = findIndices (matchline ml) $ tails l
+    countMonsters l = case l of
+      (l1 : l2 : l3 : ls) -> nm + countMonsters (tail l)
+        where
+          m1 = S.fromList $ matinline (head imonster) l1
+          m2 = S.fromList $ matinline (imonster !! 1) l2
+          m3 = S.fromList $ matinline (imonster !! 2) l3
+          nm = S.size $ S.intersection m1 $ S.intersection m2 m3
+      _ -> 0
+    numMonsters = maximum $ countMonsters . ttab . orientTile picture <$> orientations
+    countTrues l = sum $ map (sum . map (\x -> if x then 1 else 0)) l
+
+-- findml = findIndex
 
 main :: IO ()
 main = readFile "input/day20.txt" >>= print . solve
