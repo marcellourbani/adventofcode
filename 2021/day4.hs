@@ -45,12 +45,12 @@ parse s = (draws, cards)
     parseCard = map (map read . words) . lines
 
 -- >>> solve $ parse sampleData
--- 4512
-solve (draws, cards) = result * lastDraw
+-- (4512,1924)
+solve (draws, cards) = (result * lastDraw, result2 * lastDraw2)
   where
-    cardsTransposed = transpose <$> cards
     lineWins set line = and $ member <$> line <*> [set]
-    (_, result, lastDraw) = bingo draws empty 0
+    (_, result, lastDraw, _) = bingo draws empty 0 cards
+    (result2, lastDraw2, _) = ciapano draws cards []
     cardWins set card = go set card
       where
         go set card' = case card' of
@@ -59,15 +59,23 @@ solve (draws, cards) = result * lastDraw
             if lineWins set line
               then (True, sum [x | l <- card, x <- l, not $ member x set])
               else go set lines
-    bingo d set last = case (winner, winnerT) of
-      (Just (True, n), _) -> (True, n, last)
-      (_, Just (True, n)) -> (True, n, last)
-      _ -> case d of
-        [] -> (False, 0, 0)
-        (d : ds) -> bingo ds (insert d set) d
+    bingo d' set' last' cards' = go d' set' last'
       where
-        winner = find fst $ cardWins set <$> cards
-        winnerT = find fst $ cardWins set <$> cardsTransposed
+        go d set last = case (winner, winnerT) of
+          (Just (idx, (True, n)), _) -> (True, n, last, idx)
+          (_, Just (idx, (True, n))) -> (True, n, last, idx)
+          _ -> case d of
+            [] -> (False, 0, 0, 0)
+            (d : ds) -> go ds (insert d set) d
+          where
+            cardsTransposed = transpose <$> cards'
+            winner = find (fst . snd) $ zip [0 ..] (cardWins set <$> cards')
+            winnerT = find (fst . snd) $ zip [0 ..] (cardWins set <$> cardsTransposed)
+    ciapano d c acc = case bingo d empty 0 c of
+      (True, tot, last, idx) -> ciapano d (remove idx c) ((tot, last, idx) : acc)
+      _ -> head acc
+      where
+        remove i l = take i l ++ drop (i + 1) l
 
 main :: IO ()
 main = readFile "input/day4.txt" >>= print . solve . parse
