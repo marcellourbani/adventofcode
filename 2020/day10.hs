@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-10.2 script
+-- stack --resolver lts-18.18 script
 module Main where
 import           Data.List
 
@@ -37,7 +37,7 @@ solve s = (first ,product $ length.validSublists <$> splits adapters)
         count n = length . filter (==n) $ deltas
         first = count 1 * count 3
         breaks a = 0:[n+1|(x1,x2,n)<- zip3 a (drop 1 a) [0..],x2-x1 >= 3 ]
-        splits a = [x|(f:t:_)<-tails $ breaks a,let x = take (t - f + 1) $ drop f a]
+        splits a = [x | (f:t:_)<-tails $ breaks a,let x = take (t - f + 1) $ drop f a]
 
 
 

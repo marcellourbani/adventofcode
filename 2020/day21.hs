@@ -1,5 +1,4 @@
-#!/usr/bin/env stack
--- stack --resolver lts-10.2 script
+-- stack --resolver lts-18.18 script
 
 {-# OPTIONS_GHC -Wall #-}
 
@@ -21,7 +20,7 @@ parse = fmap go . lines
       where
         (_, _, _, x) = s =~ "([^(]+)\\(contains ([^)]*)\\)" :: (String, String, String, [String])
         ingredients = S.fromList $ words $ head x
-        allergens = S.fromList $(filter (/= ',')) <$> words (x !! 1)
+        allergens = S.fromList $filter (/= ',') <$> words (x !! 1)
 
 -- >>> solve "mxmxvkd kfcds sqjhc nhms (contains dairy, fish)\ntrh fvjkl sbzzf mxmxvkd (contains dairy)\nsqjhc fvjkl (contains soy)\nsqjhc mxmxvkd sbzzf (contains fish)"
 -- (5,"mxmxvkd,sqjhc,fvjkl")
