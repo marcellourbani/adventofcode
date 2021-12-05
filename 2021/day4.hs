@@ -7,9 +7,6 @@ import Data.List (find, transpose)
 import Data.List.Split (splitOn)
 import Data.Set (Set, empty, insert, member)
 
--- >>> splitOn "," "foo,bar,baz"
--- ["foo","bar","baz"]
-
 sampleData :: String
 sampleData =
   "7,4,9,5,11,17,23,2,0,14,21,24,10,16,13,6,15,25,12,22,18,20,8,19,3,26,1\n\
@@ -46,6 +43,8 @@ parse s = (draws, cards)
 
 -- >>> solve $ parse sampleData
 -- (4512,1924)
+
+solve :: ([Int], [[[Int]]]) -> (Int, Int)
 solve (draws, cards) = (result * lastDraw, result2 * lastDraw2)
   where
     lineWins set line = and $ member <$> line <*> [set]
