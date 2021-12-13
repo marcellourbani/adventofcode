@@ -21,7 +21,7 @@ instance Show Paper where
       drawLine y = toChar <$> linePoints
         where
           linePoints = zip [0 .. maxx] $ repeat y
-          toChar p = if S.member p m then '#' else '.'
+          toChar p = if S.member p m then '#' else ' '
 
 parse :: String -> Input
 parse s = Input (Paper mx my $ S.fromList dots) foldops
@@ -41,10 +41,10 @@ parse s = Input (Paper mx my $ S.fromList dots) foldops
 
 foldPaper :: Paper -> Fold -> Paper
 foldPaper (Paper mx my ps) f = case f of
-  X n -> Paper n my newPoints
+  X n -> Paper (n -1) my newPoints
     where
       newPoints = S.fromList $ zip (foldDir n . fst <$> points) $snd <$> points
-  Y n -> Paper mx n newPoints
+  Y n -> Paper mx (n -1) newPoints
     where
       newPoints = S.fromList $ zip (fst <$> points) $foldDir n . snd <$> points
   where
@@ -57,7 +57,7 @@ foldPaper (Paper mx my ps) f = case f of
 solve (Input paper fs) = (S.size s, p)
   where
     p = foldl' foldPaper paper fs
-    (Paper x y s) = foldPaper paper $head fs
+    (Paper _ _ s) = foldPaper paper $head fs
 
 main :: IO ()
 main = readFile "input/day13.txt" >>= print . solve . parse
