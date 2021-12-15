@@ -7,6 +7,7 @@ import Data.Foldable (foldr')
 import Data.List (sortOn)
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as M
+import Data.Maybe (catMaybes)
 
 type Input = (String, M.Map String String)
 
@@ -17,30 +18,41 @@ parse s = (ini, foldr' conv M.empty $ splitOn " -> " <$> rest)
     conv [k, v] m = M.insert k v m
     conv _ m = m
 
-step :: Input -> Input
-step (ini, m) = (go ini, m)
+calcFreq :: Input -> Int -> M.Map Char Int
+calcFreq (ini, m) lev = M.unionWith (-) totalfreq duplicates
   where
-    pins k = case (k, M.lookup k m) of
-      (b : _, Just a) -> b : a
-      (b : _, _) -> [b]
+    totalfreq = M.unionsWith (+) $ catMaybes $ M.lookup <$> couples ini <*> pure finalLevel
+    couples s = case s of
+      (a : b : rest) -> [a, b] : couples (b : rest)
       _ -> []
-    go s = case s of
-      (a : b : rest) -> pins [a, b] ++ go (b : rest)
-      [a] -> s
-      _ -> []
+    duplicates = snd . freqs $ tail $ reverse $ tail ini
+    finalLevel = levels !! lev
+    levelzero = M.fromList $ freqs <$> M.keys m
+    freqs s = (s, M.unionsWith (+) $ M.fromList . (: []) <$> zip s (repeat 1))
+    levels = iterate nextLevel levelzero
+    nextLevel clevel = M.fromList $ expand <$> M.toList clevel
+      where
+        expand (k, v) = case (k, M.lookup k m) of
+          ([a, b], Just [c]) -> (k, v')
+            where
+              v' = case (M.lookup [a, c] clevel, M.lookup [c, b] clevel) of
+                (Just fp, Just fs) -> M.adjust (+ (-1)) c $ M.unionWith (+) fp fs
+                (Just fp, _) -> M.adjust (+ 1) b fp
+                (_, Just fs) -> M.adjust (+ 1) a fs
+                _ -> v
+          _ -> (k, v)
 
 -- >>> solve  $parse "NNCB\n\nCH -> B\nHH -> N\nCB -> H\nNH -> C\nHB -> C\nHC -> B\nHN -> C\nNN -> C\nBH -> H\nNC -> B\nNB -> B\nBN -> B\nBB -> N\nBC -> B\nCC -> N\nCN -> C"
--- (1588,0)
+-- (1588,2188189693529)
 
 solve :: Input -> (Int, Int)
-solve i = (mostfreq - leastfreq, 0)
+solve i = (go 10, go 40)
   where
-    steps = iterate step i
-    final = fst $ steps !! 10
-    frequencies = M.toList $ foldr' (M.alter (Just . maybe 1 (+ 1))) M.empty final
-    sortedfreq = sortOn snd frequencies
-    leastfreq = snd . head $ sortedfreq
-    mostfreq = snd . last $sortedfreq
+    go n = mostfreq - leastfreq
+      where
+        freqs = sortOn snd (M.toList $ calcFreq i n)
+        leastfreq = snd . head $ freqs
+        mostfreq = snd . last $freqs
 
 main :: IO ()
 main = readFile "input/day14.txt" >>= print . solve . parse
