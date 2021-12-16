@@ -18,15 +18,28 @@ gridAt g x y = g V.! y V.! x
 parse :: String -> Input
 parse s = Input {maxx = mx, maxy = my, grid = V.fromList $ V.fromList <$> depthlist}
   where
-    depthlist :: [[Int]]
     depthlist = map (read . (: [])) <$> lines s
     my = length depthlist - 1
     mx = length (head depthlist) - 1
 
-dijkstra :: Input -> M.Map (Int, Int) Int
-dijkstra (Input mx my gr) = go initial
+extend :: Input -> Input
+extend (Input mx my gr) = Input mx' my' gr''
   where
-    go m = if (mx + 1) * (my + 1) > M.size m then go $step m else m
+    mx' = 5 * (mx + 1) -1
+    my' = 5 * (my + 1) -1
+    w = mx + 1
+    h = my + 1
+    trim x = ((x - 1) `mod` 9) + 1
+    updLine vec i = trim . (+ i) <$> vec
+    extendLine vec = vec V.++ V.concat (updLine vec <$> [1 .. 4])
+    gr' = extendLine <$> gr
+    updRows g i = updLine <$> g <*> pure i
+    gr'' = gr' V.++ V.concat (updRows gr' <$> [1 .. 4])
+
+dijkstraC :: Input -> M.Map (Int, Int) Int
+dijkstraC (Input mx my gr) = go initial
+  where
+    go m = if M.member (mx, my) m then m else go $ step m
     initial = M.singleton (0, 0) 0
     step m = M.union m newnodes
       where
@@ -44,13 +57,14 @@ dijkstra (Input mx my gr) = go initial
             mina = max 0 $ a - 1
             maxa = min mx $ a + 1
 
--- >>> solve  $parse "1163751742\n1381373672\n2136511328\n3694931569\n7463417111\n1319128137\n1359912421\n3125421639\n1293138521\n2311944581"
--- (40,0)
+-- >>> solve $parse "1163751742\n1381373672\n2136511328\n3694931569\n7463417111\n1319128137\n1359912421\n3125421639\n1293138521\n2311944581"
 
 solve :: Input -> (Int, Int)
-solve (Input mx my g) = (distances M.! (mx, my), 0)
+solve (Input mx my g) = (distances M.! (mx, my), distances2 M.! (mx', my'))
   where
-    distances = dijkstra (Input mx my g)
+    distances = dijkstraC (Input mx my g)
+    (Input mx' my' g') = extend (Input mx my g)
+    distances2 = dijkstraC (Input mx' my' g')
 
 main :: IO ()
 main = readFile "input/day15.txt" >>= print . solve . parse
