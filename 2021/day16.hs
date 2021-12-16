@@ -3,12 +3,12 @@
 
 module Main where
 
+import Data.Either (fromRight)
 import Data.Functor
 import Data.List (elemIndex)
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import Data.Void
-import Debug.Trace
 import Text.Megaparsec (ErrorItem (EndOfInput), Parsec, between, empty, failure, getOffset, getSourcePos, many, optional, parseTest, runParser, setOffset, some, try, (<|>))
 import Text.Megaparsec.Char
 
@@ -16,11 +16,12 @@ data Packet = Literal Int Int | Operator Int Int [Packet] deriving (Show, Eq)
 
 type Parser = Parsec Void String
 
-type Input = String
+type Input = Packet
 
--- parse :: String -> Input
-parse s = bits
+parse :: String -> Packet
+parse s = fromRight (Literal 0 0) parsed
   where
+    parsed = runParser parsePacket "" bits
     bits = s >>= hexBin . hexChar
     hexChar c = fromMaybe 0 $ elemIndex c "0123456789ABCDEF"
     hexBin i = go i ""
@@ -69,9 +70,6 @@ parseValue = go <&> tot
 -- >>> runParser parsePacket "" <$> ["110100101111111000101000","00111000000000000110111101000101001010010001001000000000","11101110000000001101010000001100100000100011000001100000"]
 -- [Right (Literal 6 2021),Right (Operator 1 6 [Literal 6 10,Literal 2 20]),Right (Operator 7 3 [Literal 2 1,Literal 4 2,Literal 1 3])]
 
--- >>> runParser (someUpTo 27 parsePacket) "" <$>["1101000101001010010001001000000000","11010001010","0101001000100100"]
--- [Right [Literal 6 10,Literal 2 20],Right [Literal 6 10],Right [Literal 2 20]]
-
 parsePacket :: Parser Packet
 parsePacket = ignoreTrailing go
   where
@@ -111,10 +109,34 @@ times :: Int -> Parser a -> Parser [a]
 times 0 _ = pure []
 times n p = (:) <$> p <*> times (n - 1) p
 
--- solve :: Input -> (Int, Int)
-solve i = sumVersions <$> p
+eval :: Packet -> Int
+eval (Literal _ v) = v
+eval (Operator _ o subs) = case o of
+  0 -> sum ops
+  1 -> product ops
+  2 -> minimum ops
+  3 -> maximum ops
+  5 -> case ops of
+    [x, y] | x > y -> 1
+    _ -> 0
+  6 -> case ops of
+    [x, y] | x < y -> 1
+    _ -> 0
+  7 -> case ops of
+    [x, y] | x == y -> 1
+    _ -> 0
+  _ -> 0
   where
-    p = runParser parsePacket "" (i ++ "00")
+    ops = eval <$> subs
+
+-- >>> solve .parse $ "9C0141080250320F1802104A08"
+-- (20,1)
+
+solve :: Input -> (Int, Int)
+solve i = (totv, val)
+  where
+    totv = sumVersions i
+    val = eval i
     sumVersions pk = case pk of
       Literal v _ -> v
       Operator v _ sp -> v + sum (sumVersions <$> sp)
@@ -125,11 +147,4 @@ solve i = sumVersions <$> p
       return (x, o)
 
 main :: IO ()
--- main = readFile "input/day16.txt" >>= solve . parse
-
 main = readFile "input/day16.txt" >>= print . solve . parse
-
--- main = do
---   f <-readFile "input/day16.txt"
---   let pf = parse f
---   solve pf
