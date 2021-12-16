@@ -1,3 +1,4 @@
+#!/usr/bin/env stack
 -- stack --resolver lts-18.18 script
 
 module Main where
@@ -8,7 +9,7 @@ import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import Data.Void
 import Debug.Trace
-import Text.Megaparsec (ErrorItem (EndOfInput), MonadParsec (try), Parsec, between, empty, failure, getOffset, getSourcePos, many, optional, runParser, setOffset, some, (<|>))
+import Text.Megaparsec (ErrorItem (EndOfInput), Parsec, between, empty, failure, getOffset, getSourcePos, many, optional, parseTest, runParser, setOffset, some, try, (<|>))
 import Text.Megaparsec.Char
 
 data Packet = Literal Int Int | Operator Int Int [Packet] deriving (Show, Eq)
@@ -35,26 +36,25 @@ ignoreTrailing p = do
   _ <- times slack $ char '0'
   return x
 
-upTo :: Int -> Parser a -> Parser (Maybe a)
+upTo :: Int -> Parser a -> Parser a
 upTo l p = do
   iofs <- getOffset
-  x <- try (p <&> Just) <|> return Nothing
+  x <- p
   eofs <- getOffset
   if eofs - iofs <= l
     then return x
     else do
-      setOffset iofs
-      return Nothing
+      -- setOffset iofs
+      failure (Just EndOfInput) S.empty
 
 someUpTo :: Int -> Parser a -> Parser [a]
 someUpTo l p = do
   iofs <- getOffset
-  x <- try (upTo l p)
+  x <- optional . try $ upTo l p
   eofs <- getOffset
-  let foo = trace (show iofs <> ":" <> show eofs <> "-" <> show (l - (eofs - iofs)))
   case x of
     Nothing -> return []
-    Just x' -> foo $ do
+    Just x' -> do
       next <- someUpTo (l - (eofs - iofs)) p
       pure (x' : next)
 
@@ -67,7 +67,10 @@ parseValue = go <&> tot
     tot l = sum [x * e | (x, e) <- zip (reverse l) (iterate (* 16) 1)]
 
 -- >>> runParser parsePacket "" <$> ["110100101111111000101000","00111000000000000110111101000101001010010001001000000000","11101110000000001101010000001100100000100011000001100000"]
--- [Right (Literal 6 2021),Right (Operator 1 27 [Literal 6 10,Literal 2 20]),Right (Operator 7 3 [Literal 2 1,Literal 4 2,Literal 1 3])]
+-- [Right (Literal 6 2021),Right (Operator 1 6 [Literal 6 10,Literal 2 20]),Right (Operator 7 3 [Literal 2 1,Literal 4 2,Literal 1 3])]
+
+-- >>> runParser (someUpTo 27 parsePacket) "" <$>["1101000101001010010001001000000000","11010001010","0101001000100100"]
+-- [Right [Literal 6 10,Literal 2 20],Right [Literal 6 10],Right [Literal 2 20]]
 
 parsePacket :: Parser Packet
 parsePacket = ignoreTrailing go
@@ -81,7 +84,7 @@ parsePacket = ignoreTrailing go
           lenType <- parseBit
           len <- parseLen lenType
           subs <- subPackets len lenType
-          return $ Operator vers len subs
+          return $ Operator vers ptype subs
     parseLen lenType = do
       if lenType == 0
         then parseBits 15
@@ -109,8 +112,24 @@ times 0 _ = pure []
 times n p = (:) <$> p <*> times (n - 1) p
 
 -- solve :: Input -> (Int, Int)
-solve i = i
+solve i = sumVersions <$> p
   where
+    p = runParser parsePacket "" (i ++ "00")
+    sumVersions pk = case pk of
+      Literal v _ -> v
+      Operator v _ sp -> v + sum (sumVersions <$> sp)
+    foo = parsePacket
+    foo2 = do
+      x <- parsePacket
+      o <- getOffset
+      return (x, o)
 
 main :: IO ()
+-- main = readFile "input/day16.txt" >>= solve . parse
+
 main = readFile "input/day16.txt" >>= print . solve . parse
+
+-- main = do
+--   f <-readFile "input/day16.txt"
+--   let pf = parse f
+--   solve pf
