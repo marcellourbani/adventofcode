@@ -33,19 +33,16 @@ next (State x y vx vy) = State (x + vx) (y + vy) (drag vx) (grav vy)
     grav v = v - 1
 
 -- >>> solve  $parse "target area: x=20..30, y=-10..-5"
--- 45
+-- (45,112)
 
-solve :: Input -> Int
-solve (Area minx maxx miny maxy) = maxyforv . maximum $ s_vy <$> intercepting
+solve :: Input -> (Int, Int)
+solve (Area minx maxx miny maxy) = (maxyforv . maximum $ s_vy <$> intercepting, length intercepting)
   where
-    maxxforv v = div (v * v + v) 2
     maxyforv v = v * v - v * (v -1) `div` 2
     minvx = floor . sqrt $ 2.0 * fromIntegral minx
     maxvx = maxx
-    minvy = 0
+    minvy = miny
     maxvy = - miny
-    xt v t = v * t' - t' * (t' -1) `div` 2 where t' = min v t
-    yt v t = v * t - t * (t -1) `div` 2
     intercepting = filter intersects $ State 0 0 <$> [minvx .. maxvx] <*> [minvy .. maxvy]
     intersects (State x y vx vy)
       | x > maxx || y < miny = False
