@@ -37,6 +37,42 @@ step c (op, (x1, x2), (y1, y2), (z1, z2)) = if op then S.union c ckeys else S.di
   where
     ckeys = S.fromList [(x, y, z) | x <- [x1 .. x2], y <- [y1 .. y2], z <- [z1 .. z2]]
 
+intersection :: Instruction -> Instruction -> S.Set Instruction
+intersection i1 i2
+  | op2 = S.union (parts i1) (parts i2)
+  | otherwise = S.filter (dontOverlaps i2) (parts i1)
+  where
+    (_, x_1, y_1, z_1) = i1
+    (op2, x_2, y_2, z_2) = i2
+    dint (a1, a2) (a3, a4) = case (a3 >= a1 && a3 <= a2, a2 >= a3 && a2 <= a4) of
+      (True, _) -> Just a3
+      (_, True) -> Just a2
+      _ -> Nothing
+
+    center = case (dint x_1 x_2, dint y_1 y_2, dint z_1 z_2) of
+      (Just x, Just y, Just z) -> Just (x, y, z)
+      _ -> Nothing
+
+    dontOverlaps (_, x1, y1, z1) (_, x2, y2, z2) = not (o x1 x2 && o y1 y2 && o z1 z2)
+      where
+        o (a, b) (c, d) = a <= c && b >= c || c <= a && d >= a
+
+    isNotEmpty (_, x, y, z) = not (ie x || ie y || ie z) where ie (a, b) = a >= b
+
+    parts (_, (xx1, xx2), (yy1, yy2), (zz1, zz2)) = S.filter isNotEmpty $
+      S.fromList $ case center of
+        Just (x, y, z) ->
+          [ (True, (xx1, x -1), (yy1, y -1), (zz1, z -1)),
+            (True, (xx1, y -1), (y, yy2), (zz1, z -1)),
+            (True, (x, xx2), (yy1, y -1), (zz1, z -1)),
+            (True, (x, xx2), (y, yy2), (zz1, z -1)),
+            (True, (xx1, x -1), (yy1, y -1), (z, zz2)),
+            (True, (xx1, x -1), (y, yy2), (z, zz2)),
+            (True, (x, xx2), (yy1, y -1), (z, zz2)),
+            (True, (x, xx2), (y, yy2), (z, zz2))
+          ]
+        Nothing -> [i1]
+
 -- >>> solve  $parse "on x=-20..26,y=-36..17,z=-47..7\non x=-20..33,y=-21..23,z=-26..28\non x=-22..28,y=-29..23,z=-38..16\non x=-46..7,y=-6..46,z=-50..-1\non x=-49..1,y=-3..46,z=-24..28\non x=2..47,y=-22..22,z=-23..27\non x=-27..23,y=-28..26,z=-21..29\non x=-39..5,y=-6..47,z=-3..44\non x=-30..21,y=-8..43,z=-13..34\non x=-22..26,y=-27..20,z=-29..19\noff x=-48..-32,y=26..41,z=-47..-37\non x=-12..35,y=6..50,z=-50..-2\noff x=-48..-32,y=-32..-16,z=-15..-5\non x=-18..26,y=-33..15,z=-7..46\noff x=-40..-22,y=-38..-28,z=23..41\non x=-16..35,y=-41..10,z=-47..6\noff x=-32..-23,y=11..30,z=-14..3\non x=-49..-5,y=-3..45,z=-29..18\noff x=18..30,y=-20..-8,z=-3..13\non x=-41..9,y=-7..43,z=-33..15\non x=-54112..-39298,y=-85059..-49293,z=-27449..7877\non x=967..23432,y=45373..81175,z=27513..53682"
 -- 590784
 
