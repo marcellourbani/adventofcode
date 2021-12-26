@@ -3,6 +3,8 @@
 
 module Main where
 
+import Data.Foldable (minimumBy)
+import Data.Function (on)
 import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes)
 import qualified Data.Set as S
@@ -37,27 +39,25 @@ extend (Input mx my gr) = Input mx' my' gr''
     gr'' = gr' V.++ V.concat (updRows gr' <$> [1 .. 4])
 
 dijkstraC :: Input -> M.Map (Int, Int) Int
-dijkstraC (Input mx my gr) = go initial
+dijkstraC (Input mx my gr) = go S.empty $ M.singleton (0, 0) 0
   where
-    go m = if M.member (mx, my) m then m else go $ step m
-    initial = M.singleton (0, 0) 0
-    step m = M.union m newnodes
+    go visited acc
+      | candidates == M.empty = acc
+      | M.member (mx, my) acc = acc
+      | otherwise = go visited' acc'
       where
-        visited = M.keysSet m
-        tovisit = S.difference (S.unions $ neighbors <$> S.toList visited) visited
-        newnodes = M.fromList $ cost <$> S.toList tovisit
-        cost (a, b) = ((a, b), mincost + gridAt gr a b)
-          where
-            known = S.toList $ neighbors (a, b)
-            mincost = minimum . catMaybes $ M.lookup <$> known <*> pure m
-        neighbors (a, b) = S.fromList [(x, y) | x <- [mina .. maxa], y <- [minb .. maxb], (x, y) /= (a, b), a == x || b == y]
-          where
-            minb = max 0 $ b - 1
-            maxb = min my $ b + 1
-            mina = max 0 $ a - 1
-            maxa = min mx $ a + 1
+        candidates = M.filterWithKey (\k _ -> S.notMember k visited) acc
+        ((cx, cy), cv) = minimumBy (on compare snd) $ M.toList candidates
+        visited' = S.insert (cx, cy) visited
+        xs = [max 0 $ cx -1 .. min mx $ cx + 1]
+        ys = [max 0 $cy -1 .. min my $cy + 1]
+        toUpd = [v | x <- xs, y <- ys, let v = (x, y), M.notMember v acc, x == cx || y == cy]
+        updates = M.fromList $ upd <$> toUpd
+        acc' = M.union acc updates
+        upd k = (k, cv + uncurry (gridAt gr) k)
 
 -- >>> solve $parse "1163751742\n1381373672\n2136511328\n3694931569\n7463417111\n1319128137\n1359912421\n3125421639\n1293138521\n2311944581"
+-- (40,315)
 
 solve :: Input -> (Int, Int)
 solve (Input mx my g) = (distances M.! (mx, my), distances2 M.! (mx', my'))
