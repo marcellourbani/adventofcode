@@ -3,6 +3,9 @@
 
 module Main where
 
+import Data.Foldable (Foldable (foldr'), foldl')
+import qualified Data.Map as M
+
 data Board = Board {p1 :: Int, p2 :: Int, dice :: Int} deriving (Show, Eq)
 
 type Input = Board
@@ -33,13 +36,52 @@ game b = go b True 0 0 0
         sc1' = if p1t then sc1 + p1 b' else sc1
         sc2' = if p1t then sc2 else sc2 + p2 b'
 
--- >>> solve  $parse "Player 1 starting position: 4\nPlayer 2 starting position: 8"
--- 739785
+addMaps :: [M.Map Int Int] -> M.Map Int Int
+addMaps = foldl' (M.unionWith (+)) M.empty
 
-solve :: Board -> Int
-solve i = other * rolls
+addVals :: [(Int, Int)] -> M.Map Int Int
+addVals l = addMaps $ uncurry M.singleton <$> l
+
+game2 :: Board -> (Int, Int)
+game2 (Board pl1 pl2 _) = go (M.singleton pl1 1) (M.singleton pl2 1) True 0 0
+  where
+    go m1 m2 turn wins1 wins2 = case (m1 == M.empty || m2 == M.empty, turn) of
+      (True, _) -> (wins1, wins2)
+      (_, True) -> go m1' m2 False (wins1 + newwins) wins2
+        where
+          (m1', newwins) = turn2 m1 m2
+      (_, False) -> go m1 m2' True wins1 (wins2 + newwins)
+        where
+          (m2', newwins) = turn2 m2 m1
+
+    turn2 mcur moth = (mcur'', wins)
+      where
+        mcur' = score2 mcur
+        (winm, mcur'') = M.partitionWithKey (const . (>= 21)) mcur'
+        wins = foldl' (+) 0 winm * foldl' (+) 0 moth
+
+rollFrequencies = M.toList $ addVals scores
+  where
+    roll = [1 .. 3]
+    scores = zip [a + b + c | a <- roll, b <- roll, c <- roll] $ repeat 1
+
+score2 m = addVals factors
+  where
+    mul (v1, f1) (v2, f2) = (v1 + v2, f1 * f2)
+    factors = mul <$> M.toList m <*> rollFrequencies
+
+-- >>> foldl' (+) 0 $ score2 $ score2 $ M.singleton 4 1
+
+-- fromList [(3,1),(4,3),(5,6),(6,7),(7,6),(8,3),(9,1)]
+
+-- >>> solve  $parse "Player 1 starting position: 4\nPlayer 2 starting position: 8"
+-- (739785,36404517)
+
+solve :: Board -> (Int, Int)
+solve i = (other * rolls, wins1)
   where
     (_, other, rolls) = game i
+    (wins1, wins2) = game2 i
 
 main :: IO ()
 main = readFile "input/day21.txt" >>= print . solve . parse
