@@ -42,8 +42,11 @@ addMaps = foldl' (M.unionWith (+)) M.empty
 addVals :: [(Int, Int)] -> M.Map Int Int
 addVals l = addMaps $ uncurry M.singleton <$> l
 
+md :: Int -> Int -> Int
+md a b = 1 + mod (a -1) b
+
 game2 :: Board -> (Int, Int)
-game2 (Board pl1 pl2 _) = go (M.singleton pl1 1) (M.singleton pl2 1) True 0 0
+game2 (Board pl1 pl2 _) = go (M.singleton (pl1, 0) 1) (M.singleton (pl2, 0) 1) True 0 0
   where
     go m1 m2 turn wins1 wins2 = case (m1 == M.empty || m2 == M.empty, turn) of
       (True, _) -> (wins1, wins2)
@@ -57,28 +60,23 @@ game2 (Board pl1 pl2 _) = go (M.singleton pl1 1) (M.singleton pl2 1) True 0 0
     turn2 mcur moth = (mcur'', wins)
       where
         mcur' = score2 mcur
-        (winm, mcur'') = M.partitionWithKey (const . (>= 21)) mcur'
+        (winm, mcur'') = M.partitionWithKey (const . (>= 21) . snd) mcur'
         wins = foldl' (+) 0 winm * foldl' (+) 0 moth
 
-rollFrequencies = M.toList $ addVals scores
-  where
-    roll = [1 .. 3]
-    scores = zip [a + b + c | a <- roll, b <- roll, c <- roll] $ repeat 1
-
-score2 m = addVals factors
-  where
-    mul (v1, f1) (v2, f2) = (v1 + v2, f1 * f2)
-    factors = mul <$> M.toList m <*> rollFrequencies
-
--- >>> foldl' (+) 0 $ score2 $ score2 $ M.singleton 4 1
-
--- fromList [(3,1),(4,3),(5,6),(6,7),(7,6),(8,3),(9,1)]
+    score2 m = foldl' (M.unionWith (+)) M.empty factors
+      where
+        mul ((v1, s), f1) (v2, f2) = M.singleton (nv, s + nv) (f1 * f2) where nv = md (v1 + v2) 10
+        factors = mul <$> M.toList m <*> rollFrequencies
+    rollFrequencies = M.toList $ addVals scores
+      where
+        roll = [1 .. 3]
+        scores = zip [a + b + c | a <- roll, b <- roll, c <- roll] $ repeat 1
 
 -- >>> solve  $parse "Player 1 starting position: 4\nPlayer 2 starting position: 8"
--- (739785,36404517)
+-- (739785,444356092776315)
 
 solve :: Board -> (Int, Int)
-solve i = (other * rolls, wins1)
+solve i = (other * rolls, max wins1 wins2)
   where
     (_, other, rolls) = game i
     (wins1, wins2) = game2 i
