@@ -1,4 +1,3 @@
-#!/usr/bin/env stack
 -- stack --resolver lts-18.18 script
 
 module Main where
@@ -55,13 +54,14 @@ numPoints :: Image -> Int
 numPoints (Image _ _ _ _ _ i) = M.size i
 
 -- >>> solve  $parse "..#.#..#####.#.#.#.###.##.....###.##.#..###.####..#####..#....#..#..##..###..######.###...####..#..#####..##..#.#####...##.#.#..#.##..#.#......#.###.######.###.####...#.##.##..#..#..#####.....#.#....###..#.##......#.....#..#..#..##..#...##.######.####.####.#.#...#.......#..#.#.#...####.##.#......#..#...##.#.##..#...##.#.##..###.#......#.#.......#.#.#.####.###.##...#.....####.#..#..#.##.#....##..#.####....##...##..#...#......#.#.......#.......##..####..#...#.#.#...##..#.#..###..#####........#..####......#..#\n\n#..#.\n#....\n##..#\n..#..\n..###"
--- 35
+-- (35,3351)
 
-solve :: Input -> Int
-solve (algo, image) = p1
+solve :: Input -> (Int, Int)
+solve (algo, image) = (p1, p2)
   where
-    p1 = numPoints newImage
-    newImage = nextImage algo $ nextImage algo image
+    p1 = numPoints (newimages !! 2)
+    p2 = numPoints (newimages !! 50)
+    newimages = iterate (nextImage algo) image
 
 main :: IO ()
 main = readFile "input/day20.txt" >>= print . solve . parse
