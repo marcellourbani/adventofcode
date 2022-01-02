@@ -8,19 +8,19 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 
-data Image = Image {minx :: Int, miny :: Int, maxx :: Int, maxy :: Int, image :: M.Map (Int, Int) Int}
+data Image = Image {minx :: Int, miny :: Int, maxx :: Int, maxy :: Int, bgc :: Int, image :: M.Map (Int, Int) Int}
 
 type Algo = M.Map Int Char
 
 type Input = (Algo, Image)
 
 instance Show Image where
-  show (Image minx miny maxx maxy i) = show (minx, miny, maxx, maxy) <> "\n" <> unlines (l <$> [miny .. maxy])
+  show (Image minx miny maxx maxy _ i) = show (minx, miny, maxx, maxy) <> "\n" <> unlines (l <$> [miny .. maxy])
     where
       l y = [if M.lookup (x, y) i == Just 1 then '#' else '.' | x <- [minx .. maxx]]
 
 parse :: String -> Input
-parse s = (algo, Image 0 0 (length $ head ls) (length ls) image)
+parse s = (algo, Image 0 0 (length $ head ls) (length ls) 0 image)
   where
     (a, g) = case splitOn "\n\n" s of
       [a, g] -> (a, g)
@@ -31,7 +31,9 @@ parse s = (algo, Image 0 0 (length $ head ls) (length ls) image)
     image = M.fromList $ [((x, y), 1) | (y, l) <- zip [0 ..] ls, (x, p) <- zip [0 ..] l, ptoi p /= 0]
 
 point :: Image -> (Int, Int) -> Int
-point img idx = fromMaybe 0 $ M.lookup idx (image img)
+point (Image lbx lby ubx uby bg img) idx@(x, y)
+  | x >= lbx && x <= ubx && y >= lby && y <= uby = fromMaybe 0 $ M.lookup idx img
+  | otherwise = bg
 
 algIndex :: Image -> (Int, Int) -> Int
 algIndex img (x, y) = sum values
@@ -42,22 +44,20 @@ algIndex img (x, y) = sum values
     p2s = (2 ^) <$> [8, 7 .. 0]
 
 nextImage :: Algo -> Image -> Image
-nextImage algo img = Image (minx -1) (miny -1) (maxx + 1) (maxy + 1) image'
+nextImage algo img = Image (minx -1) (miny -1) (maxx + 1) (maxy + 1) bc' image'
   where
-    (Image minx miny maxx maxy image) = img
+    (Image minx miny maxx maxy bc image) = img
+    bc' = if algo M.! (511 * bc) == '#' then 1 else 0
     points = [(x, y) | x <- [minx -1 .. maxx + 1], y <- [miny -1 .. maxy + 1]]
     image' = M.fromList [(p, 1) | p <- points, let v = M.lookup (algIndex img p) algo, v == Just '#']
 
 numPoints :: Image -> Int
-numPoints (Image _ _ _ _ i) = M.size i
-
--- >>> (a,i) = parse "..#.#..#####.#.#.#.###.##.....###.##.#..###.####..#####..#....#..#..##..###..######.###...####..#..#####..##..#.#####...##.#.#..#.##..#.#......#.###.######.###.####...#.##.##..#..#..#####.....#.#....###..#.##......#.....#..#..#..##..#...##.######.####.####.#.#...#.......#..#.#.#...####.##.#......#..#...##.#.##..#...##.#.##..###.#......#.#.......#.#.#.####.###.##...#.....####.#..#..#.##.#....##..#.####....##...##..#...#......#.#.......#.......##..####..#...#.#.#...##..#.#..###..#####........#..####......#..#\n\n#..#.\n#....\n##..#\n..#..\n..###"
--- >>> nextImage a $  nextImage a i
+numPoints (Image _ _ _ _ _ i) = M.size i
 
 -- >>> solve  $parse "..#.#..#####.#.#.#.###.##.....###.##.#..###.####..#####..#....#..#..##..###..######.###...####..#..#####..##..#.#####...##.#.#..#.##..#.#......#.###.######.###.####...#.##.##..#..#..#####.....#.#....###..#.##......#.....#..#..#..##..#...##.######.####.####.#.#...#.......#..#.#.#...####.##.#......#..#...##.#.##..#...##.#.##..###.#......#.#.......#.#.#.####.###.##...#.....####.#..#..#.##.#....##..#.####....##...##..#...#......#.#.......#.......##..####..#...#.#.#...##..#.#..###..#####........#..####......#..#\n\n#..#.\n#....\n##..#\n..#..\n..###"
 -- 35
 
--- solve :: Input -> (Int, Int)
+solve :: Input -> Int
 solve (algo, image) = p1
   where
     p1 = numPoints newImage
