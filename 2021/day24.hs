@@ -42,6 +42,10 @@ chunk p c acc = case p of
   where
     acc' = if null c then acc else acc ++ [c]
 
+-- Couldn't get this by myself, copied logic from a python solution
+-- Explaination from reddit (https://www.reddit.com/r/adventofcode/comments/rnejv5/comment/hqoy7u9/?utm_source=share&utm_medium=web2x&context=3)
+-- I solved this one initially by hand; after observing that the input file is highly repetitive (14 blocks differing by only 3 integers), I analyzed what each block does, and saw that input is only ever read into register w which remains untouched, and only register z carries over between blocks. Others have explained how you can further deduce that the actions of one of the 14 blocks use mul R x, where x can only ever be 0 or 1, as a form of conditional computations, where the overall effect is a stack using z as a base-26 number of push/pop pairs (based on the integer argument to div) where the two arguments to add then control whether two input characters match
+
 solve :: [ALUOp] -> (Int, Int)
 solve i = (go p1vals multipliers [] [], go p2vals multipliers [] [])
   where
