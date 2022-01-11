@@ -127,6 +127,7 @@ completed :: BState -> Bool
 completed bs = all icomp $ M.toList bs where icomp ((x, y), a) = y /= 1 && x == targetX a
 
 -- >>> solve $ parse "#############\n#...........#\n###B#C#B#D###\n  #A#D#C#A#\n  #########"
+-- (12521,44169)
 
 solve :: Input -> (Int, Int)
 solve (i1, i2) = (go i1, go i2)
