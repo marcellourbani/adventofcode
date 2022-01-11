@@ -36,6 +36,8 @@ data PossMove = PossMove {pmsrc :: Coord, pmdest :: Coord, pmcost :: Int, pmstep
 
 type MovesMap = M.Map Coord [PossMove]
 
+type Input = (Board, Board)
+
 instance Show Board where
   show (Board minx maxx nr current) = "#############\n-- #" <> corridor <> "#\n" <> unlines (line <$> [2 .. nr]) <> "--   #########"
     where
@@ -45,8 +47,11 @@ instance Show Board where
         | i == 2 = "-- " <> concat [c | x <- [0 .. 12], let c = if x >= 3 && even (x -3) && x < 10 then cell $ M.lookup (x, i) current else "#"]
         | otherwise = "--   " <> concat [c | x <- [2 .. 10], let c = if x >= 3 && even (x -3) then cell $ M.lookup (x, i) current else "#"]
 
-parse :: String -> Board
-parse s = case lines s of
+parse :: String -> Input
+parse i = (parseBoard i, parseBoard $ unlines $ take 3 l <> ["  #D#C#B#A#", "  #D#B#A#C#"] <> drop 3 l) where l = lines i
+
+parseBoard :: String -> Board
+parseBoard s = case lines s of
   (_ : c : ls) -> Board 1 (length c - 2) (length ls) (M.fromList (concat $ pl <$> zip [2 ..] (take (length ls -1) ls)))
   _ -> error "bad input"
   where
@@ -122,23 +127,24 @@ completed :: BState -> Bool
 completed bs = all icomp $ M.toList bs where icomp ((x, y), a) = y /= 1 && x == targetX a
 
 -- >>> solve $ parse "#############\n#...........#\n###B#C#B#D###\n  #A#D#C#A#\n  #########"
--- (12521,[(((7,2),B),(4,1)),(((5,2),C),(6,1)),(((9,2),D),(8,1)),(((9,3),A),(10,1)),(((6,1),C),(7,2)),(((5,3),D),(6,1)),(((4,1),B),(5,3)),(((8,1),D),(9,3)),(((6,1),D),(9,2)),(((3,2),B),(5,2)),(((10,1),A),(3,2))])
 
-solve :: Board -> Int
-solve i@(Board _ _ nr cm) = fst $aStar pmoves iq S.empty
+solve :: Input -> (Int, Int)
+solve (i1, i2) = (go i1, go i2)
   where
-    iq = P.singleton 0 (cm, 0, [])
-    pmoves = possMoves i
-    aStar mm queue visited
-      | completed cur = (curpr, path)
-      | S.member cur visited = aStar mm queue'' visited
-      | otherwise = aStar mm queue'' visited'
+    go i@(Board _ _ nr cm) = fst $aStar pmoves iq S.empty
       where
-        mi@(_, (cur, curpr, path)) = P.findMin queue
-        nexts = successors i {current = cur} mm curpr visited path
-        queue' = P.deleteMin queue
-        queue'' = foldl' (flip (uncurry P.insert)) queue' nexts
-        visited' = S.insert cur visited
+        iq = P.singleton 0 (cm, 0, [])
+        pmoves = possMoves i
+        aStar mm queue visited
+          | completed cur = (curpr, path)
+          | S.member cur visited = aStar mm queue'' visited
+          | otherwise = aStar mm queue'' visited'
+          where
+            mi@(_, (cur, curpr, path)) = P.findMin queue
+            nexts = successors i {current = cur} mm curpr visited path
+            queue' = P.deleteMin queue
+            queue'' = foldl' (flip (uncurry P.insert)) queue' nexts
+            visited' = S.insert cur visited
 
 main :: IO ()
 main = readFile "input/day23.txt" >>= print . solve . parse
