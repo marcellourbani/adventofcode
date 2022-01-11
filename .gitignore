@@ -4,3 +4,4 @@
 *.hi
 *.o
 tmp
+.stack-work
