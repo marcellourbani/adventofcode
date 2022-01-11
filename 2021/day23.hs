@@ -36,8 +36,6 @@ data PossMove = PossMove {pmsrc :: Coord, pmdest :: Coord, pmcost :: Int, pmstep
 
 type MovesMap = M.Map Coord [PossMove]
 
-type Input = Board
-
 instance Show Board where
   show (Board minx maxx nr current) = "#############\n-- #" <> corridor <> "#\n" <> unlines (line <$> [2 .. nr]) <> "--   #########"
     where
@@ -47,7 +45,7 @@ instance Show Board where
         | i == 2 = "-- " <> concat [c | x <- [0 .. 12], let c = if x >= 3 && even (x -3) && x < 10 then cell $ M.lookup (x, i) current else "#"]
         | otherwise = "--   " <> concat [c | x <- [2 .. 10], let c = if x >= 3 && even (x -3) then cell $ M.lookup (x, i) current else "#"]
 
-parse :: String -> Input
+parse :: String -> Board
 parse s = case lines s of
   (_ : c : ls) -> Board 1 (length c - 2) (length ls) (M.fromList (concat $ pl <$> zip [2 ..] (take (length ls -1) ls)))
   _ -> error "bad input"
@@ -90,15 +88,20 @@ estimate bs = sum $ M.mapWithKey go bs
       | x == targetX a = 0
       | otherwise = unitScore a * (abs (x - targetX a) + y)
 
+simpleMove :: BState -> Move -> BState
+simpleMove bs ((src, a), dst) = M.insert dst a $ M.delete src bs
+
+boardMove :: Board -> Move -> Board
+boardMove b m = b {current = simpleMove (current b) m}
+
 successors :: Board -> MovesMap -> Int -> S.Set BState -> [Move] -> [(Int, (BState, Int, [Move]))]
 successors b@(Board _ _ mr cur) mm curcost blacklist path = M.toList cur >>= go
   where
     occupied = M.keysSet cur
-    isValid a (PossMove src@(x1, y1) dst@(x2, y2) cst steps) = case y2 of
+    isValid a (PossMove src@(x1, y1) dst@(x2, y2) _ steps) = case y2 of
       1 | x1 == targetX a -> freePath && not (fullbelow x1 y1 a)
       1 -> freePath
-      _ | x2 /= targetX a -> False
-      _ -> freePath && fullbelow x2 y2 a
+      _ -> x2 == targetX a && freePath && fullbelow x2 y2 a
       where
         freePath = S.empty == S.intersection occupied steps
         fullbelow xx yy aa = null [y | y <- [yy + 1 .. mr], M.lookup (xx, y) cur /= Just aa]
@@ -106,10 +109,10 @@ successors b@(Board _ _ mr cur) mm curcost blacklist path = M.toList cur >>= go
     applyMove a (PossMove src dst cst _) =
       if S.member nst blacklist
         then Nothing
-        else Just (movecost + estimate nst, (nst, movecost + curcost, path ++ [((src, a), dst)]))
+        else Just (movecost + estimate nst, (nst, movecost, path ++ [((src, a), dst)]))
       where
-        movecost = cst * unitScore a
-        nst = M.delete src $ M.insert dst a cur
+        movecost = curcost + cst * unitScore a
+        nst = simpleMove cur ((src, a), dst)
 
     go ((x, y), a) = catMaybes $ applyMove a <$> moves
       where
@@ -119,20 +122,10 @@ completed :: BState -> Bool
 completed bs = all icomp $ M.toList bs where icomp ((x, y), a) = y /= 1 && x == targetX a
 
 -- >>> solve $ parse "#############\n#...........#\n###B#C#B#D###\n  #A#D#C#A#\n  #########"
--- (14521,[(((7,2),B),(4,1)),(((5,2),C),(7,2)),(((5,3),D),(8,1)),(((4,1),B),(5,3)),(((3,2),B),(5,2)),(((9,2),D),(11,1)),(((9,3),A),(10,1)),(((8,1),D),(9,3)),(((10,1),A),(3,2)),(((11,1),D),(9,2))])
+-- (12521,[(((7,2),B),(4,1)),(((5,2),C),(6,1)),(((9,2),D),(8,1)),(((9,3),A),(10,1)),(((6,1),C),(7,2)),(((5,3),D),(6,1)),(((4,1),B),(5,3)),(((8,1),D),(9,3)),(((6,1),D),(9,2)),(((3,2),B),(5,2)),(((10,1),A),(3,2))])
 
--- >>> solve $ parse "#############\n#...........#\n###B#A#C#D###\n  #A#B#C#D#\n  #########"
--- (46,[(((3,2),B),(4,1)),(((5,2),A),(6,1)),(((4,1),B),(5,2)),(((6,1),A),(3,2))])
-
-foo :: P.MinPQueue Integer Integer
-foo = P.fromList [(1, 2), (3, 2), (1, 5), (3, 5)]
-
-bar = P.deleteMin $ P.deleteMin foo
-
-dn b (sc, (cu, _, _)) = (b {current = cu}, sc)
-
--- solve :: Input -> Int
-solve i@(Board _ _ nr cm) = aStar pmoves iq S.empty
+solve :: Board -> Int
+solve i@(Board _ _ nr cm) = fst $aStar pmoves iq S.empty
   where
     iq = P.singleton 0 (cm, 0, [])
     pmoves = possMoves i
@@ -141,7 +134,7 @@ solve i@(Board _ _ nr cm) = aStar pmoves iq S.empty
       | S.member cur visited = aStar mm queue'' visited
       | otherwise = aStar mm queue'' visited'
       where
-        (_, (cur, curpr, path)) = P.findMin queue
+        mi@(_, (cur, curpr, path)) = P.findMin queue
         nexts = successors i {current = cur} mm curpr visited path
         queue' = P.deleteMin queue
         queue'' = foldl' (flip (uncurry P.insert)) queue' nexts
