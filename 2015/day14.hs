@@ -3,7 +3,6 @@
 
 module Main where
 
-import Data.Function (on)
 import Data.List (maximumBy)
 import qualified Data.Map.Strict as M
 
