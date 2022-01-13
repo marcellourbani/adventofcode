@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.18 script
+-- stack --resolver lts-18.18 script --package MissingH
 
 module Main where
 
