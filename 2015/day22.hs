@@ -85,6 +85,12 @@ nextStates s@(State _ (Player _ mp) _) = filter ((/= Just Loss) . outcome . snd)
     states = turn s <$> possibleSpells effs mp
     effs = fst <$> filter ((/= 1) . snd) (_e s)
 
+nextStates2 :: State -> [(Int, State)]
+nextStates2 s@(State _ (Player _ mp) _) = filter ((/= Just Loss) . outcome . snd) states
+  where
+    states = turn2 s <$> possibleSpells effs mp
+    effs = fst <$> filter ((/= 1) . snd) (_e s)
+
 outcome :: State -> Maybe Outcome
 outcome (State b p _) = case (b, p) of
   (Boss p _, _) | p <= 0 -> Just Win
@@ -93,6 +99,9 @@ outcome (State b p _) = case (b, p) of
 
 findWinner :: State -> (State, Int)
 findWinner = findState ((== Just Win) . outcome) nextStates
+
+findWinner2 :: State -> (State, Int)
+findWinner2 = findState ((== Just Win) . outcome) nextStates2
 
 turn :: State -> Spell -> (Int, State)
 turn s@(State _ _ effs) sp
@@ -112,14 +121,23 @@ turn s@(State _ _ effs) sp
         shield = if isNothing (find ((== Shield) . fst) e') then 0 else 7
         bossHits = max 1 $ bhits - shield
 
+turn2 :: State -> Spell -> (Int, State)
+turn2 s@(State _ (Player ph pm) _) sp
+  | ph <= 1 = (0, s')
+  | otherwise = turn s' sp
+  where
+    p' = Player (ph -1) pm
+    s' = s {_p = p'}
+
 -- >>> solve $ parse"Hit Points: 55\nDamage: 8"
--- (953,State {_b = Boss {_bhealth = -1, _bDamage = 8}, _p = Player {_phealth = 7, _pmana = 52}, _e = []})
+-- (953,1289)
 
 solve :: Boss -> (Int, Int)
-solve enemy = (p1, 1)
+solve enemy = (p1, p2)
   where
     initial = State enemy (Player 50 500) []
     (_, p1) = findWinner initial
+    (_, p2) = findWinner2 initial
 
 main :: IO ()
 main = readFile "input/day22.txt" >>= print . solve . parse
