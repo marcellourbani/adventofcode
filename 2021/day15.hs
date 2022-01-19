@@ -1,3 +1,4 @@
+#!/usr/bin/env stack
 -- stack --resolver lts-18.18 script
 
 module Main where
@@ -11,7 +12,6 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes)
 import qualified Data.Set as S
 import qualified Data.Vector as V
-import Debug.Trace (trace)
 
 type Grid = V.Vector (V.Vector Int)
 
@@ -86,7 +86,6 @@ dijkstraMC (Input mx my gr) = fst <$> M.fromList (runST $ go m)
           let toUpd = [v | x <- xs, y <- ys, let v = (x, y), v /= (cx, cy), x == cx || y == cy]
           let values = (+ vnv) . uncurry (gridAt gr) <$> toUpd
           let kvs = zip toUpd $ zip values $ repeat False
-          let _ = trace "foo" kvs
           insValues kvs $ pure dm
           go $ pure dm
 
