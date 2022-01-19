@@ -65,28 +65,29 @@ applySpell s@(State b@(Boss bh bd) p@(Player ph pm) e) sp = (cost sp, s')
       Delayed eff -> State b p' ((eff, duration eff) : e)
 
 -- generic djikstra-ish search
-findState :: Ord a => (a -> Bool) -> (a -> [(Int, a)]) -> a -> (a, Int)
-findState exitCond neighbours start = go S.empty (P.singleton 0 start)
+findState :: Ord a => (a -> Bool) -> (a -> [(Int, (a, [t]))]) -> a -> (a, Int, [t])
+findState exitCond neighbours start = go S.empty (P.singleton 0 (start, []))
   where
     go visited costs
-      | exitCond curst = (curst, cost)
+      | exitCond curst = (curst, cost, curtr)
       | S.member curst visited = go visited' costs'
       | otherwise = go visited' costs''
       where
-        (cost, curst) = P.findMin costs
+        (cost, (curst, curtr)) = P.findMin costs
         visited' = S.insert curst visited
         costs' = P.deleteMin costs
-        newNodes = first (+ cost) <$> filter ((`S.notMember` visited) . snd) (neighbours curst)
-        costs'' = foldl' (flip $ uncurry P.insert) costs' newNodes
+        newNodes = first (+ cost) <$> filter ((`S.notMember` visited) . fst . snd) (neighbours curst)
+        addCost cs (c, (st, tr)) = P.insert c (st, curtr <> tr) cs
+        costs'' = foldl' addCost costs' newNodes
 
-nextStates :: State -> [(Int, State)]
-nextStates s@(State _ (Player _ mp) _) = filter ((/= Just Loss) . outcome . snd) states
+nextStates :: State -> [(Int, (State, [Spell]))]
+nextStates s@(State _ (Player _ mp) _) = filter ((/= Just Loss) . outcome . fst . snd) states
   where
     states = turn s <$> possibleSpells effs mp
     effs = fst <$> filter ((/= 1) . snd) (_e s)
 
-nextStates2 :: State -> [(Int, State)]
-nextStates2 s@(State _ (Player _ mp) _) = filter ((/= Just Loss) . outcome . snd) states
+nextStates2 :: State -> [(Int, (State, [Spell]))]
+nextStates2 s@(State _ (Player _ mp) _) = filter ((/= Just Loss) . outcome . fst . snd) states
   where
     states = turn2 s <$> possibleSpells effs mp
     effs = fst <$> filter ((/= 1) . snd) (_e s)
@@ -97,21 +98,21 @@ outcome (State b p _) = case (b, p) of
   (_, Player p _) | p <= 0 -> Just Loss
   _ -> Nothing
 
-findWinner :: State -> (State, Int)
+findWinner :: State -> (State, Int, [Spell])
 findWinner = findState ((== Just Win) . outcome) nextStates
 
-findWinner2 :: State -> (State, Int)
+findWinner2 :: State -> (State, Int, [Spell])
 findWinner2 = findState ((== Just Win) . outcome) nextStates2
 
-turn :: State -> Spell -> (Int, State)
+turn :: State -> Spell -> (Int, (State, [Spell]))
 turn s@(State _ _ effs) sp
-  | _bhealth (_b s') <= 0 = (0, s')
-  | otherwise = second bossTurn s''
+  | _bhealth (_b s') <= 0 = (0, (s', []))
+  | otherwise = (c'', (bossTurn s'', [sp]))
   where
     ageEff (e, a) = (e, a - 1)
     eff' = filter ((> 0) . snd) $ map ageEff effs
     s' = (foldl' applyEffect s $fst <$> effs) {_e = eff'}
-    s'' = applySpell s' sp
+    (c'', s'') = applySpell s' sp
     bossTurn st@(State (Boss _ bhits) p@(Player ph pm) e')
       | _bhealth (_b st') <= 0 = st'
       | otherwise = st' {_p = Player (ph - bossHits) pm'}
@@ -121,23 +122,23 @@ turn s@(State _ _ effs) sp
         shield = if isNothing (find ((== Shield) . fst) e') then 0 else 7
         bossHits = max 1 $ bhits - shield
 
-turn2 :: State -> Spell -> (Int, State)
+turn2 :: State -> Spell -> (Int, (State, [Spell]))
 turn2 s@(State _ (Player ph pm) _) sp
-  | ph <= 1 = (0, s')
+  | ph <= 1 = (0, (s', []))
   | otherwise = turn s' sp
   where
     p' = Player (ph -1) pm
     s' = s {_p = p'}
 
 -- >>> solve $ parse"Hit Points: 55\nDamage: 8"
--- (953,1289)
+-- (953,1289,[Delayed Poison,Delayed Recharge,Delayed Shield,Delayed Poison,Delayed Recharge,Immediate Drain,Delayed Poison,Immediate Drain,Immediate MagicMissile])
 
 solve :: Boss -> (Int, Int)
 solve enemy = (p1, p2)
   where
     initial = State enemy (Player 50 500) []
-    (_, p1) = findWinner initial
-    (_, p2) = findWinner2 initial
+    (_, p1, _) = findWinner initial
+    (_, p2, s2) = findWinner2 initial
 
 main :: IO ()
 main = readFile "input/day22.txt" >>= print . solve . parse
