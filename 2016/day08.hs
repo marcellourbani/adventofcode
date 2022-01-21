@@ -45,6 +45,7 @@ lexeme = L.lexeme sc
 symbol :: String -> Parser String
 symbol = L.symbol sc
 
+parse :: String -> [Operation]
 parse s = fromRight [] $ runParser (some parseOperation) "" s
 
 parseOperation :: Parser Operation
