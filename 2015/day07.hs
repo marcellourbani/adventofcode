@@ -54,8 +54,6 @@ operand = lexeme $ (L.decimal <&> Lit) <|> Var <$> identifier
 gate :: Parser Gate
 gate = Gate <$> gateOp <*> lexeme (symbol "->" *> identifier)
 
-foo = lexeme (symbol "->" *> identifier)
-
 gateOp :: Parser GateOp
 gateOp =
   try (Not <$> op "NOT")
