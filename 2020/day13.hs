@@ -33,6 +33,7 @@ solve s = (first, second)
         rawBuses = splitOn "," bs
         buses = read <$> filter (/= "x") rawBuses
         constraints = [(id, v) | (i, x) <- zip [0 ..] rawBuses, let id = read x, let v = mod (id - i) id, x /= "x"]
+    parseinput _ = error "invalid input"
     (arrival, buses, constraints) = parseinput $ lines s
     nextPass start bus = if 0 == mod start bus then start else start + bus - mod start bus
     nextPasses = [(nextPass arrival bus, bus) | bus <- buses]
