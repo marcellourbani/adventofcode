@@ -61,12 +61,12 @@ applyMove (State _ g) m@(_, d, s) = State d $ M.union updated g
   where
     updated = M.fromList $ zip (S.toList s) (repeat d)
 
-myaStar :: Ord s => P.MinPQueue Int (s, Int, [m]) -> S.Set s -> (s -> Bool) -> (s -> Int -> [(Int, (s, Int, m))]) -> Maybe (s, Int, [m])
-myaStar queue visited goal nextStates
+aStar :: Ord s => P.MinPQueue Int (s, Int, [m]) -> S.Set s -> (s -> Bool) -> (s -> Int -> [(Int, (s, Int, m))]) -> Maybe (s, Int, [m])
+aStar queue visited goal nextStates
   | P.null queue = Nothing
   | goal curst = Just (curst, curcost, curpath)
-  | S.member curst visited = myaStar queue' visited goal nextStates
-  | otherwise = myaStar queue'' visited' goal nextStates
+  | S.member curst visited = aStar queue' visited goal nextStates
+  | otherwise = aStar queue'' visited' goal nextStates
   where
     (_, (curst, curcost, curpath)) = P.findMin queue
     queue' = P.deleteMin queue
@@ -91,8 +91,8 @@ solve l = (p1, p2)
   where
     additional = Entry <$> ["dilithium", "elerium"] <*> [True, False]
     p2s = l {sgrid = M.union (sgrid l) $ M.fromList $ zip additional $ repeat 1}
-    Just (_, p1, _) = myaStar (P.singleton 0 (l, 0, [])) S.empty isGoal nextStatesCosted
-    Just (_, p2, _) = myaStar (P.singleton 0 (p2s, 0, [])) S.empty isGoal nextStatesCosted
+    Just (_, p1, _) = aStar (P.singleton 0 (l, 0, [])) S.empty isGoal nextStatesCosted
+    Just (_, p2, _) = aStar (P.singleton 0 (p2s, 0, [])) S.empty isGoal nextStatesCosted
 
 main :: IO ()
 main = readFile "input/day11.txt" >>= print . solve . parse
