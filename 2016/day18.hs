@@ -1,4 +1,3 @@
-#!/usr/bin/env stack
 -- stack --resolver lts-18.18 script
 
 {-# LANGUAGE TupleSections #-}
@@ -30,20 +29,21 @@ createMap first lines = M.filter id $ foldl' addline firstlinemap [2 .. lines]
         cs = zip [1 .. wid] $ repeat l
         newline = zip cs $ prevSafe m <$> cs
 
--- creating a 4000000 line map was fast enough, but this is better
--- would probably be even faster using lists as we always scan sequentially
+-- creating a 4000000 line map was fast enough, but this is way faster
 countSafe :: [Bool] -> Int -> Int
-countSafe first lines = go firstlinemap 1
+countSafe first lines = go first 1
   where
-    firstlinemap = M.fromList $ zip [1 ..] first
-    wid = length first
-    prevSafe m x = isSafe $ M.findWithDefault True <$> [x -1 .. x + 1] <*> pure m
+    nextLine line = go2 $ [True] <> line <> [True]
+      where
+        go2 l = case l of
+          a : b : c : xs -> isSafe [a, b, c] : go2 (tail l)
+          _ -> []
     go l i
       | i == lines = cur
       | otherwise = cur + go next (i + 1)
       where
-        cur = M.size $ M.filter id l
-        next = M.fromList $ zip [1 .. wid] $ prevSafe l <$> [1 .. wid]
+        cur = length $ filter id l
+        next = nextLine l
 
 -- >>> length $ createMap (parse ".^^.^.^^^^") 10
 -- 38
