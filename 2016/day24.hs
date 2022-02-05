@@ -51,12 +51,17 @@ isGoal :: State -> Bool
 isGoal (State n _ _) = M.null n
 
 costEstimate :: State -> Int
-costEstimate (State n l _) = go l $ filter (/= l) $ snd <$> M.toList n
+costEstimate (State n l _) = 2 --go l $ filter (/= l) $ snd <$> M.toList n
   where
     md (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
-    go p l = case sortOn (md p) l of
+    go p l = case costed of
       [] -> 0
-      x : xs -> md p x + go x xs
+      (_, c) : _ -> c + minimum (go2 <$> ps)
+        where
+          ps = fst <$> filter ((== c) . snd) costed
+          go2 p1 = go p1 $ filter (/= p1) l
+      where
+        costed = sortOn snd $ zip l $ md p <$> l
 
 applyMove :: State -> Move -> State
 applyMove (State sn _ gr) m = State (M.filter (/= m) sn) m gr
@@ -70,9 +75,10 @@ nextStates s c = nm <$> moves
 -- >>> solve $ parse "###########\n#0.1.....2#\n#.#######.#\n#4.......3#\n###########"
 -- 14
 
-solve (ns, m) = (p1)
+solve :: Input -> Int
+solve (ns, m) = p1
   where
-    initialState = State ns (ns M.! '0') m
+    initialState = State (M.delete '0' ns) (ns M.! '0') m
     Just (_, p1, _) = aStar (P.singleton 0 (initialState, 0, [])) S.empty isGoal nextStates
 
 main :: IO ()
