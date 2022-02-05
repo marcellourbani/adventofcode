@@ -50,18 +50,24 @@ nextMoves (State _ (x, y) v) = [p | p <- ((,y) <$> [x - 1, x + 1]) <> ((x,) <$> 
 isGoal :: State -> Bool
 isGoal (State n _ _) = M.null n
 
+isGoal2 :: (Int, Int) -> State -> Bool
+isGoal2 z (State n l _) = M.null n && z == l
+
 costEstimate :: State -> Int
-costEstimate (State n l _) = 2 --go l $ filter (/= l) $ snd <$> M.toList n
+costEstimate (State n l _) = go l $ filter (/= l) $ snd <$> M.toList n
   where
     md (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
-    go p l = case costed of
+    go p l = case sortOn (md p) l of
       [] -> 0
-      (_, c) : _ -> c + minimum (go2 <$> ps)
-        where
-          ps = fst <$> filter ((== c) . snd) costed
-          go2 p1 = go p1 $ filter (/= p1) l
-      where
-        costed = sortOn snd $ zip l $ md p <$> l
+      x : xs -> md p x + go x xs
+
+costEstimate2 :: (Int, Int) -> State -> Int
+costEstimate2 z (State n l _) = go l (filter (/= l) $ snd <$> M.toList n)
+  where
+    md (x1, y1) (x2, y2) = abs (x1 - x2) + abs (y1 - y2)
+    go p l = case sortOn (md p) l of
+      [] -> 0
+      x : xs -> md p x + go x xs
 
 applyMove :: State -> Move -> State
 applyMove (State sn _ gr) m = State (M.filter (/= m) sn) m gr
@@ -72,14 +78,22 @@ nextStates s c = nm <$> moves
     moves = nextMoves s
     nm m = (c + costEstimate s', (s', c + 1, m)) where s' = applyMove s m
 
--- >>> solve $ parse "###########\n#0.1.....2#\n#.#######.#\n#4.......3#\n###########"
--- 14
-
-solve :: Input -> Int
-solve (ns, m) = p1
+nextStates2 :: (Int, Int) -> State -> Int -> [(Int, (State, Int, Move))]
+nextStates2 z s c = nm <$> moves
   where
-    initialState = State (M.delete '0' ns) (ns M.! '0') m
+    moves = nextMoves s
+    nm m = (c + costEstimate2 z s', (s', c + 1, m)) where s' = applyMove s m
+
+-- >>> solve $ parse "###########\n#0.1.....2#\n#.#######.#\n#4.......3#\n###########"
+-- (14,20,fromList [],(1,1),(1,1))
+
+solve :: Input -> (Int, Int)
+solve (ns, m) = (p1, p2)
+  where
+    zeropos = ns M.! '0'
+    initialState = State (M.delete '0' ns) zeropos m
     Just (_, p1, _) = aStar (P.singleton 0 (initialState, 0, [])) S.empty isGoal nextStates
+    Just (_, p2, _) = aStar (P.singleton 0 (initialState, 0, [])) S.empty (isGoal2 zeropos) $ nextStates2 zeropos
 
 main :: IO ()
 main = readFile "input/day24.txt" >>= print . solve . parse
