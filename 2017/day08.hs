@@ -13,6 +13,7 @@ import qualified Data.Set as S
 import Data.Void (Void)
 import Text.Megaparsec (MonadParsec (lookAhead, notFollowedBy), Parsec, anySingle, between, count, empty, manyTill, runParser, some, try, (<|>))
 import Text.Megaparsec.Char
+import qualified Text.Megaparsec.Char as LC
 import qualified Text.Megaparsec.Char.Lexer as L
 
 type Parser = Parsec Void String
@@ -39,6 +40,7 @@ lexeme = L.lexeme sc
 symbol :: String -> Parser String
 symbol = L.symbol sc
 
+parse :: String -> [Instruction]
 parse s = fromRight [] $ runParser (some parseInstruction) "" s
 
 parseInstruction :: Parser Instruction
@@ -48,7 +50,7 @@ parseInstruction =
   where
     parseCond = (symbol "if" *> parseReg) <**> parseSign <*> parseInt
     parseInt = L.signed sc $ lexeme L.decimal
-    parseReg = manyTill L.charLiteral (char ' ')
+    parseReg = lexeme $ some LC.letterChar
     parseSign =
       lexeme $
         try (CGE <$ symbol ">=")
@@ -72,13 +74,6 @@ exec cpu i = case i of
       CNE r v -> rv r /= v
       CGE r v -> rv r >= v
       CLE r v -> rv r <= v
-
-p =
-  [ Inc "b" 5 (CGT "a" 1),
-    Inc "a" 1 (CLT "b" 5),
-    Dec "c" (-10) (CGE "a" 1),
-    Inc "c" (-20) (CEQ "c" 10)
-  ]
 
 -- >>> solve $ parse "b inc 5 if a > 1\na inc 1 if b < 5\nc dec -10 if a >= 1\nc inc -20 if c == 10"
 -- (1,10)
