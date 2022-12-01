@@ -5,3 +5,4 @@
 *.o
 tmp
 .stack-work
+.vscode/bookmarks.json
