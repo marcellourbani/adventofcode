@@ -23,4 +23,4 @@ solve l = (p1, p2)
     overlap ((a, b), (c, d)) = (c >= a && c <= b) || (a >= c && a <= d)
 
 main :: IO ()
-main = readFile "input/day4.txt" >>= print . solve . parse
+main = readFile "input/day04.txt" >>= print . solve . parse

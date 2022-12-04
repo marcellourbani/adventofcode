@@ -30,4 +30,4 @@ solve l = (p1, p2)
     badges = S.toList . toBadge <$> chunksOf 3 (toSet <$> l)
 
 main :: IO ()
-main = readFile "input/day3.txt" >>= print . solve . parse
+main = readFile "input/day03.txt" >>= print . solve . parse

@@ -58,4 +58,4 @@ solve l = (p1, p2)
     p2 = sum $ playByActualStrategy <$> l
 
 main :: IO ()
-main = readFile "input/day2.txt" >>= print . solve . parse
+main = readFile "input/day02.txt" >>= print . solve . parse
