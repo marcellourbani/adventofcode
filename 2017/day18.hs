@@ -20,11 +20,15 @@ data Instruction
   | Add Char Operand
   | Mul Char Operand
   | Mod Char Operand
-  | Rcv Operand
+  | Rcv Char
   | Jgz Operand Operand
   deriving (Show)
 
 data State = State {registers :: M.Map Char Int, frequency :: Int, recovered :: Int, pc :: Int} deriving (Show)
+
+data CpuState = Running | Waiting | Done deriving (Show, Eq)
+
+data Cpu = Cpu {cid :: Int, cregisters :: M.Map Char Int, state :: CpuState, pco :: Int, inbox :: [Int], sent :: Int} deriving (Show)
 
 type Parser = Parsec Void String
 
@@ -47,7 +51,7 @@ instruction =
     <|> (symbol "add" *> (Add <$> c <*> op))
     <|> (symbol "mul" *> (Mul <$> c <*> op))
     <|> (symbol "mod" *> (Mod <$> c <*> op))
-    <|> (symbol "rcv" *> (Rcv <$> op))
+    <|> (symbol "rcv" *> (Rcv <$> c))
     <|> (symbol "jgz" *> (Jgz <$> op <*> op))
   where
     op = lexeme operand
@@ -63,33 +67,66 @@ runProgram prog excond = go initial
     go state@(State reg freq recf c)
       | excond state = state
       | otherwise = case prog M.!? c of
-          Nothing -> state
-          Just (Set r v) -> go $ state' {registers = M.insert r (eval v) reg}
-          Just (Add r v) -> go $ state' {registers = M.adjust (+ eval v) r reg}
-          Just (Mul r v) -> go $ state' {registers = M.adjust (* eval v) r reg}
-          Just (Mod r v) -> go $ state' {registers = M.adjust (`mod` eval v) r reg}
-          Just (Jgz r v)
-            | 0 < eval r -> go $ state {pc = c + eval v}
-            | otherwise -> go state'
-          Just (Snd o) -> go $ state' {frequency = eval o}
-          Just (Rcv o)
-            | 0 < eval o -> go $ state' {recovered = freq}
-            | otherwise -> go state'
+        Nothing -> state
+        Just (Set r v) -> go $ state' {registers = M.insert r (eval reg v) reg}
+        Just (Add r v) -> go $ state' {registers = M.adjust (+ eval reg v) r reg}
+        Just (Mul r v) -> go $ state' {registers = M.adjust (* eval reg v) r reg}
+        Just (Mod r v) -> go $ state' {registers = M.adjust (`mod` eval reg v) r reg}
+        Just (Jgz r v)
+          | 0 < eval reg r -> go $ state {pc = c + eval reg v}
+          | otherwise -> go state'
+        Just (Snd o) -> go $ state' {frequency = eval reg o}
+        Just (Rcv r)
+          | 0 < M.findWithDefault 0 r reg -> go $ state' {recovered = freq}
+          | otherwise -> go state'
       where
         state' = state {pc = c + 1}
-        regval r = M.findWithDefault 0 r reg
-        eval op = case op of
-          Literal l -> l
-          Register r -> regval r
+
+eval :: M.Map Char Int -> Operand -> Int
+eval reg op = case op of
+  Literal l -> l
+  Register r -> M.findWithDefault 0 r reg
+
+runProgram2 :: M.Map Int Instruction -> Int
+runProgram2 prog = go (createCpu 0) (createCpu 1)
+  where
+    createCpu i = Cpu i M.empty Running 0 [] 0
+    locked cpu = state cpu == Waiting && null (inbox cpu)
+    doneorl cpu = locked cpu || state cpu == Done
+    go c1@(Cpu i reg st c ibox s) c2
+      | doneorl c1 && doneorl c2 = sent $ if 1 == cid c1 then c1 else c2
+      | doneorl c1 = go c2 c1
+      | st == Waiting = go c1 {state = Running, inbox = tail ibox} c2
+      | otherwise = go c1' c2'
+      where
+        eval' (Register 'p') = c
+        eval' o = eval reg o
+        c1'' = c1 {pco = c + 1}
+        (c1', c2') = case prog M.!? c of
+          Nothing -> (c1, c2)
+          Just (Set r v) -> (c1'' {cregisters = M.insert r (eval' v) reg}, c2)
+          Just (Add r v) -> (c1'' {cregisters = M.adjust (+ eval' v) r reg}, c2)
+          Just (Mul r v) -> (c1'' {cregisters = M.adjust (* eval' v) r reg}, c2)
+          Just (Mod r v) -> (c1'' {cregisters = M.adjust (`mod` eval' v) r reg}, c2)
+          Just (Jgz r v)
+            | 0 < eval' r -> (c1 {pco = c + eval' v}, c2)
+            | otherwise -> (c1'', c2)
+          Just (Snd o) -> (c1'' {sent = 1 + s}, c2 {inbox = inbox c2 <> [eval' o]})
+          Just (Rcv r)
+            | null ibox -> (c2, c1'' {state = Waiting})
+            | otherwise -> (c1'' {inbox = tail ibox, cregisters = M.insert r (head ibox) reg}, c2)
 
 -- >>>  solve $ parse "set a 1\nadd a 2\nmul a a\nmod a 5\nsnd a\nset a 0\nrcv a\njgz a -1\nset a 1\njgz a -2"
--- (4,4)
+-- >>>  solve $ parse "snd 1\nsnd 2\nsnd p\nrcv a\nrcv b\nrcv c\nrcv d"
+-- (4,1)
+-- (0,3)
 solve :: [Instruction] -> (Int, Int)
-solve l = (p1, p1)
+solve l = (p1, p2)
   where
     prog = M.fromAscList $ zip [0 ..] l
     p1x = runProgram prog (\s -> recovered s > 0)
     p1 = recovered $ runProgram prog ((> 0) . recovered)
+    p2 = runProgram2 prog
 
 main :: IO ()
 main = readFile "input/day18.txt" >>= print . solve . parse
