@@ -90,16 +90,18 @@ eval reg op = case op of
 runProgram2 :: M.Map Int Instruction -> Int
 runProgram2 prog = go (createCpu 0) (createCpu 1)
   where
-    createCpu i = Cpu i M.empty Running 0 [] 0
+    createCpu i = Cpu i (M.singleton 'p' i) Running 0 [] 0
     locked cpu = state cpu == Waiting && null (inbox cpu)
     doneorl cpu = locked cpu || state cpu == Done
+    receive cpu@(Cpu i reg st c ibox s) = case prog M.!? c of
+      (Just (Rcv r)) -> cpu {state = Running, inbox = tail ibox, cregisters = M.insert r (head ibox) reg, pco = c + 1}
+      _ -> undefined
     go c1@(Cpu i reg st c ibox s) c2
       | doneorl c1 && doneorl c2 = sent $ if 1 == cid c1 then c1 else c2
       | doneorl c1 = go c2 c1
-      | st == Waiting = go c1 {state = Running, inbox = tail ibox} c2
+      | st == Waiting = go (receive c1) c2
       | otherwise = go c1' c2'
       where
-        eval' (Register 'p') = c
         eval' o = eval reg o
         c1'' = c1 {pco = c + 1}
         (c1', c2') = case prog M.!? c of
@@ -113,13 +115,14 @@ runProgram2 prog = go (createCpu 0) (createCpu 1)
             | otherwise -> (c1'', c2)
           Just (Snd o) -> (c1'' {sent = 1 + s}, c2 {inbox = inbox c2 <> [eval' o]})
           Just (Rcv r)
-            | null ibox -> (c2, c1'' {state = Waiting})
-            | otherwise -> (c1'' {inbox = tail ibox, cregisters = M.insert r (head ibox) reg}, c2)
+            | null ibox -> (c2, c1 {state = Waiting})
+            | otherwise -> (receive c1, c2)
 
 -- >>>  solve $ parse "set a 1\nadd a 2\nmul a a\nmod a 5\nsnd a\nset a 0\nrcv a\njgz a -1\nset a 1\njgz a -2"
 -- >>>  solve $ parse "snd 1\nsnd 2\nsnd p\nrcv a\nrcv b\nrcv c\nrcv d"
 -- (4,1)
 -- (0,3)
+
 solve :: [Instruction] -> (Int, Int)
 solve l = (p1, p2)
   where
