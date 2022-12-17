@@ -14,6 +14,8 @@ type Valves = M.Map String Valve
 
 data State = State {sVid :: String, sTime :: Int, sRate :: Int, sTot :: Int, sVisited :: S.Set String} deriving (Show, Eq)
 
+data State2 = State2 {s2Me :: (String, Int), s2Elep :: (String, Int), s2Time :: Int, s2Rate :: Int, s2Tot :: Int, s2Visited :: [String]} deriving (Show, Eq)
+
 parse :: String -> Valves
 parse s = M.fromList $ zip (vId <$> valves) valves
   where
@@ -66,18 +68,80 @@ nextStates dis s@(State vid t r cur visited)
 stateValue :: State -> Int
 stateValue (State _ t r cur _) = (30 - t) * r + cur
 
--- >>> solve $ parse "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB\nValve BB has flow rate=13; tunnels lead to valves CC, AA\nValve CC has flow rate=2; tunnels lead to valves DD, BB\nValve DD has flow rate=20; tunnels lead to valves CC, AA, EE\nValve EE has flow rate=3; tunnels lead to valves FF, DD\nValve FF has flow rate=0; tunnels lead to valves EE, GG\nValve GG has flow rate=0; tunnels lead to valves FF, HH\nValve HH has flow rate=22; tunnel leads to valve GG\nValve II has flow rate=0; tunnels lead to valves AA, JJ\nValve JJ has flow rate=21; tunnel leads to valve II"
+state2Value :: State2 -> Int
+state2Value (State2 _ _ t r cur _) = (26 - t) * r + cur
 
-solve :: Valves -> Int
-solve l = p1
+nextvalves :: Valves -> [String] -> (String, Int) -> [(String, Int)]
+nextvalves dis visited (val, vald)
+  | vald > 0 = []
+  | otherwise = M.toList $ M.withoutKeys dests $ S.fromList visited
+  where
+    dests = vDest $ dis M.! val
+
+advanceS2 :: Valves -> State2 -> State2
+advanceS2 dis s@(State2 me@(myv, myt) ele@(elv, elt) t r cur visited) = s'
+  where
+    t' = t + 1
+    cur' = cur + r
+    dec x
+      | x == 0 = 0
+      | otherwise = x -1
+    me' = (myv, dec myt)
+    ele' = (elv, dec elt)
+
+    toAdd (vid, vn) = (vn == 0) && notElem vid visited
+    added = S.toList $ S.fromList $ fst <$> filter toAdd [me', ele']
+    r' = r + sum (vFlow . (dis M.!) <$> added)
+    visited' = visited <> added
+    s' = State2 me' ele' t' r' cur' visited'
+
+nextStates2 :: Valves -> State2 -> [State2]
+nextStates2 dis s@(State2 me@(myv, myt) ele@(elv, elt) t r cur visited)
+  | t >= 26 = []
+  | otherwise = nexts
+  where
+    visited' = myv : elv : visited
+    nv = nextvalves dis visited'
+    s' = advanceS2 dis s
+    swapped = case (nv me, nv ele) of
+      ([], []) -> []
+      ([], eles) -> [s' {s2Elep = e} | e <- eles]
+      (mes, []) -> [s' {s2Me = m} | m <- mes]
+      (mes, eles) -> [s' {s2Me = m, s2Elep = e} | e <- eles, m <- mes, fst m /= fst e]
+    nexts = case swapped of
+      [] -> []
+      _ -> toRelevant dis <$> swapped
+
+toRelevant :: Valves -> State2 -> State2
+toRelevant dis st@(State2 me' ele' t' _ _ vis')
+  | hasDest vis' me' && hasDest vis' ele' && t' < 26 = toRelevant dis $ advanceS2 dis st
+  | otherwise = st
+  where
+    hasDest openv (vid, vt) = vt > 0 && notElem vid openv
+
+-- >>> solve $ parse "Valve AA has flow rate=0; tunnels lead to valves DD, II, BB\nValve BB has flow rate=13; tunnels lead to valves CC, AA\nValve CC has flow rate=2; tunnels lead to valves DD, BB\nValve DD has flow rate=20; tunnels lead to valves CC, AA, EE\nValve EE has flow rate=3; tunnels lead to valves FF, DD\nValve FF has flow rate=0; tunnels lead to valves EE, GG\nValve GG has flow rate=0; tunnels lead to valves FF, HH\nValve HH has flow rate=22; tunnel leads to valve GG\nValve II has flow rate=0; tunnels lead to valves AA, JJ\nValve JJ has flow rate=21; tunnel leads to valve II"
+-- (1651,1707)
+
+solve :: Valves -> (Int, Int)
+solve l = (p1, p2)
   where
     p1 = sTot $ go initial
+    p2 = s2Tot $ go2 initial2
     distances = calcDistances l
     initial = State "AA" 1 0 0 S.empty
+    initial2 = State2 ("AA", 0) ("AA", 0) 0 0 0 []
     cs s1 s2 = compare (stateValue s1) (stateValue s2)
     go s = case nextStates distances s of
       [] -> s
       ns -> maximumBy cs $ go <$> ns
+
+    cs2 s1 s2 = compare (state2Value s1) (state2Value s2)
+    to26 s
+      | s2Time s >= 26 = s
+      | otherwise = to26 $ advanceS2 distances s
+    go2 s = case nextStates2 distances s of
+      [] -> to26 s
+      ns -> maximumBy cs2 $ go2 <$> ns
 
 main :: IO ()
 main = readFile "input/day16.txt" >>= print . solve . parse
