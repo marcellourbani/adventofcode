@@ -7,7 +7,7 @@ import qualified Data.Map.Strict as M
 import Data.Maybe (catMaybes)
 import qualified Data.Set as S
 
-data ElfMap = ElfMap {unElfMap :: S.Set (Int, Int), moves :: [(Int, Int)]}
+data ElfMap = ElfMap {unElfMap :: S.Set (Int, Int), moves :: [(Int, Int)]} deriving (Eq)
 
 instance Show ElfMap where
   show (ElfMap s ms) =
@@ -42,7 +42,9 @@ neighbors (x, y) (mx, my) = S.fromList $ case mx of
   _ -> zip (repeat $ x + mx) [y -1 .. y + 1]
 
 advanceMap :: ElfMap -> ElfMap
-advanceMap (ElfMap em moves) = ElfMap em' moves'
+advanceMap e@(ElfMap em moves)
+  | null movableelves = e
+  | otherwise = ElfMap em' moves'
   where
     movableelves = filter movable $ S.toList em
     posMoves = catMaybes $ pickMove <$> movableelves <*> [moves]
@@ -61,11 +63,17 @@ advanceMap (ElfMap em moves) = ElfMap em' moves'
       m1 : ms -> pickMove e ms
 
 -- >>> solve $ parse "..............\n..............\n.......#......\n.....###.#....\n...#...#.#....\n....#...##....\n...#.###......\n...##.#.##....\n....#..#......\n..............\n..............\n.............."
--- 110
+-- (110,20)
 
-solve :: ElfMap -> Int
-solve l = p1
+solve :: ElfMap -> (Int, Int)
+solve l = (p1, p2)
   where
+    p2 = go l 0
+    go s n
+      | s' == s = n + 1
+      | otherwise = go s' $ n + 1
+      where
+        s' = advanceMap s
     p1 = emptyCells $ iterate advanceMap l !! 10
     emptyCells (ElfMap em _) = ((maximum xs - minimum xs + 1) * (maximum ys - minimum ys + 1)) - S.size em
       where
