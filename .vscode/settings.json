@@ -4,5 +4,11 @@
   "files.watcherExclude": {
     "**/node_modules/*/**": false,
     "**/node_modules/[!@]*/**/*": true
+  },
+  "haskell.toolchain": {
+    "hls": "1.10.0.0",
+    "cabal": "recommended",
+    "stack": "recommended",
+    "ghc": "9.2.7"
   }
 }
