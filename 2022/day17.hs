@@ -1,12 +1,15 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.18 script
+-- stack --resolver lts-18.18 script --optimize
+
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NoImportQualifiedPost #-}
 
 module Main where
 
 import Control.Arrow (Arrow (first, second))
 import Data.Bifunctor (bimap)
 import Data.List.Split (splitOn)
-import Data.Set qualified as S
+import qualified Data.Set as S
 
 data Shape = Shape {sMaxx :: !Int, sMaxy :: !Int, sCont :: !(S.Set (Int, Int))} deriving (Eq)
 

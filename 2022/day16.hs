@@ -1,12 +1,15 @@
 #!/usr/bin/env stack
 -- stack --resolver lts-18.18 script
 
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE NoImportQualifiedPost #-}
+
 module Main where
 
 import Data.Foldable (maximumBy)
 import Data.List (find)
-import Data.Map.Strict qualified as M
-import Data.Set qualified as S
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 data Valve = Valve {vId :: String, vFlow :: Int, vDest :: M.Map String Int} deriving (Show, Eq)
 
