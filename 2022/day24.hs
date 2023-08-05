@@ -9,7 +9,7 @@ module Main where
 import Algorithm.Search (aStar)
 import Data.List (elemIndex)
 import qualified Data.Map.Strict as M
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import qualified Data.Set as S
 import qualified Data.Vector as V
 
@@ -79,16 +79,24 @@ nextStates maxt f (Status (x, y) t) = Status <$> nextpos <*> [mod1 (t + 1) maxt]
     nextpos = filter (`S.member` unFreeCoords frees) nextposraw
 
 -- >>> solve $ parse "#.######\n#>>.<^<#\n#.<..<<#\n#>v.><>#\n#<^v^^>#\n######.#"
--- 18
-solve v@(Valley mx my ix ex bs) = p1
+-- (18,54)
+solve :: Valley -> (Int, Int)
+solve v@(Valley mx my ix ex bs) = (p1, p2)
   where
     nexts = nextStates (lcm mx my) $ getFreeFromBlizzards v
     trcost = const . const 1
     cost (Status (x, y) t) = my + 1 - y + abs ex - x
-    isGoal (Status c _) = c == (ex, my + 1)
+    endGoal = isGoal (ex, my + 1)
+    startGoal = isGoal (ix, 0)
+    isGoal (gx, gy) (Status c _) = c == (gx, gy)
     initial = Status (ix, 0) 0
-    p1s = aStar nexts trcost cost isGoal initial
+    p1s = aStar nexts trcost cost endGoal initial
     p1 = maybe 0 fst p1s
+    p2bottom = last $ maybe [] snd p1s -- partial
+    p2up = aStar nexts trcost cost startGoal p2bottom
+    p2top = last $ maybe [] snd p2up
+    p2end = aStar nexts trcost cost endGoal p2top
+    p2 = sum $ mapMaybe (fmap fst) [p1s, p2up, p2end]
 
 main :: IO ()
 main = readFile "input/day24.txt" >>= print . solve . parse
