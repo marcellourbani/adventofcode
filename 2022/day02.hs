@@ -36,7 +36,7 @@ playRound (other, me) = mine + 1 + game
       | otherwise = 0
 
 strategyRound :: Strategy -> Round -> Int
-strategyRound strategy r = playRound $second strategy r
+strategyRound strategy r = playRound $ second strategy r
 
 playByActualStrategy :: Round -> Int
 playByActualStrategy (elf, me) = game + 1 + fromEnum myPlay
