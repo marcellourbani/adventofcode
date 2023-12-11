@@ -78,15 +78,53 @@ distances gamemap startpos = go initial [startpos] 1
         newkeys = fst <$> (ps >>= validAdjacents gamemap bl)
         nxt = M.union curr $ M.fromList ((,dist) <$> newkeys)
 
+fill :: S.Set (Int, Int) -> S.Set (Int, Int) -> S.Set (Int, Int)
+fill cur cand
+  | S.null cand = cur
+  | S.null toadd = cur
+  | otherwise = fill cur' cand'
+  where
+    neigh (x, y) = (,) <$> [x - 1 .. x + 1] <*> [y - 1 .. y + 1]
+    toadd = S.intersection cand $ S.fromList $ S.toList cur >>= neigh
+    cur' = S.union cur toadd
+    cand' = S.difference cand toadd
+
+enclosed :: S.Set (Int, Int) -> S.Set (Int, Int)
+enclosed path = go S.empty candidates
+  where
+    limits se = (head xs, last xs, head ys, last ys)
+      where
+        xs = S.toAscList $ S.map fst se
+        ys = S.toAscList $ S.map snd se
+    (x1, x2, y1, y2) = limits path
+    candidates = S.difference (S.fromList $ (,) <$> [x1 .. x2] <*> [y1 .. y2]) path
+    isOut s = external
+      where
+        (xx1, xx2, yy1, yy2) = limits s
+        external = xx1 == x1 || xx2 == x2 || yy1 == y1 || yy2 == y2
+    go inside cand
+      | S.null cand = inside
+      | otherwise = go inside' cand'
+      where
+        block = fill (S.take 1 cand) cand
+        inside' = if isOut block then inside else S.union block inside
+        cand' = S.difference cand block
+
 -- >>> solve $ parse "-L|F7\n7S-7|\nL|7||\n-L-J|\nL|-JF"
 -- >>> solve $ parse "..F7.\n.FJ|.\nSJ.L7\n|F--J\nLJ..."
--- 4
--- 8
+-- >>> solve $ parse ".F----7F7F7F7F-7....\n.|F--7||||||||FJ....\n.||.FJ||||||||L7....\nFJL7L7LJLJ||LJ.L-7..\nL--J.L7...LJS7F-7L7.\n....F-J..F7FJ|L7L7L7\n....L7.F7||L7|.L7L7|\n.....|FJLJ|FJ|F7|.LJ\n....FJL-7.||.||||...\n....L---J.LJ.LJLJ..."
+-- >>> solve $ parse "FF7FSF7F7F7F7F7F---7\nL|LJ||||||||||||F--J\nFL-7LJLJ||||||LJL-77\nF--JF--7||LJLJIF7FJ-\nL---JF-JLJIIIIFJLJJ7\n|F|F-JF---7IIIL7L|7|\n|FFJF7L7F-JF7IIL---7\n7-L-JL7||F7|L7F-7F7|\nL.L7LFJ|||||FJL7||LJ\nL7JLJL-JLJLJL--JLJ.L"
+-- (4,1)
+-- (8,1)
+-- (70,9)
+-- (80,10)
 
-solve :: GameMap -> Int
-solve gamemap = p1
+-- solve :: GameMap -> Int
+solve gamemap = (p1, p2)
   where
-    p1 = maximum $ distances gamemap startP
+    path = distances gamemap startP
+    p1 = maximum path
+    p2 = S.size $ enclosed $ M.keysSet path
     startP = fst . M.elemAt 0 $ M.filter (== S) gamemap
 
 main :: IO ()
