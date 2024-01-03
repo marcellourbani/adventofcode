@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.18 script
+-- stack --resolver lts-18.18 script --optimize
 
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImportQualifiedPost #-}
@@ -75,8 +75,8 @@ processSignal signal@(Signal _ _ lev) state = go (incS lev [1] state) [signal] [
           mem' = M.insert n (Conjunction n l inp') mem
 
 -- >>> solve "output" $ parse "broadcaster -> a\n%a -> inv, con\n&inv -> b\n%b -> con\n&con -> output"
--- (11687500,[("a",Low),("b",Low),("output",Low)])
-solve out l = p1
+-- (11687500,1)
+solve out l = (p1, p2 l)
   where
     button = Signal "button" "broadcaster" Low
     p1final = iterate (processSignal button) l !! 1000
@@ -86,7 +86,7 @@ solve out l = p1
       _ -> Nothing
     states s = M.toList $ M.mapMaybe state (stMemory s)
     p1 = stHighs p1final * stLows p1final
-    -- will work eventually
+    -- brute force will work eventually,might take ages
     p2 st
       | umState (readState st out) == Low = 0
       | otherwise = 1 + p2 (processSignal button st)
