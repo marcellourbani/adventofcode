@@ -76,7 +76,7 @@ processSignal signal@(Signal _ _ lev) state = go (incS lev [1] state) [signal] [
 
 -- >>> solve "output" $ parse "broadcaster -> a\n%a -> inv, con\n&inv -> b\n%b -> con\n&con -> output"
 -- (11687500,1)
-solve out l = (p1, p2 l)
+solve out l = (p1, p2 0 l)
   where
     button = Signal "button" "broadcaster" Low
     p1final = iterate (processSignal button) l !! 1000
@@ -87,9 +87,9 @@ solve out l = (p1, p2 l)
     states s = M.toList $ M.mapMaybe state (stMemory s)
     p1 = stHighs p1final * stLows p1final
     -- brute force will work eventually,might take ages
-    p2 st
-      | umState (readState st out) == Low = 0
-      | otherwise = 1 + p2 (processSignal button st)
+    p2 n st
+      | umState (readState st out) == Low = n
+      | otherwise = p2 (n + 1) (processSignal button st)
 
 main :: IO ()
 main = readFile "input/day20.txt" >>= print . solve "rx" . parse

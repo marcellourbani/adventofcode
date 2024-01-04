@@ -20,3 +20,13 @@ instance {-# OVERLAPPABLE #-} Show c => Show (GameMap c) where
 
 mapTile :: c -> GameMap c -> (Int, Int) -> c
 mapTile def gm p = fromMaybe def $ M.lookup p $ gmMap gm
+
+inMap :: GameMap c -> (Int, Int) -> Bool
+inMap (GameMap w h _) (x, y) = 0 <= x && x < w && 0 <= y && y < h
+
+parse :: String -> GameMap Char
+parse s = GameMap w h $ M.fromList [((x, y), c) | (y, line) <- zip [0 ..] l, (x, c) <- zip [0 ..] line, c /= '.']
+  where
+    l = lines s
+    w = length $ head l
+    h = length l
