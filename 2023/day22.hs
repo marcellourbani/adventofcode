@@ -1,12 +1,12 @@
 #!/usr/bin/env stack
 -- stack --resolver lts-18.18 script
 
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImportQualifiedPost #-}
 
 module Main where
 
-import Data.List (sortOn)
+import Data.Binary.Get (label)
+import Data.List (nub, partition, sortOn)
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as M
 import Data.Maybe (isNothing, mapMaybe)
@@ -62,8 +62,8 @@ dropz underM bricks = go bricks lowBs
       [] -> lows
       (x : xs) -> go (M.insert (bId x) (lower lows x) lows) xs
 
-supporters :: M.Map Int [Int] -> M.Map Int Brick -> M.Map Int [Int]
-supporters underM bricks = M.unionsWith (<>) l
+supportedBy :: M.Map Int [Int] -> M.Map Int Brick -> M.Map Int [Int]
+supportedBy underM bricks = M.unionsWith (<>) l
   where
     supports a b = 1 == zDist (bricks M.! a) (bricks M.! b)
     l = [M.singleton bi [u] | (bi, us) <- M.toList underM, u <- us, supports bi u]
@@ -71,17 +71,33 @@ supporters underM bricks = M.unionsWith (<>) l
 singleSupporters :: M.Map Int [Int] -> S.Set Int
 singleSupporters m = S.fromList $ concatMap snd $ M.toList (M.filter ((== 1) . length) m)
 
--- >>> solve $ parse "1,0,1~1,2,1\n0,0,2~2,0,2\n0,2,3~2,2,3\n0,0,4~0,2,4\n2,0,5~2,2,5\n0,1,6~2,1,6\n1,1,8~1,1,9"
+allSupported :: M.Map Int [Int] -> M.Map Int [Int] -> Int -> [Int]
+allSupported supporting supported i = nub $ go (S.singleton i) [i]
+  where
+    go preds parents = case nexts of
+      [] -> []
+      xs -> xs ++ go preds' xs
+      where
+        preds' = S.union preds $ S.fromList parents
+        destroyed b = (all (`S.member` preds') <$> M.lookup b supported) == Just True
+        aboves b = M.findWithDefault [] b supporting
+        nexts = filter destroyed $ nub $ parents >>= aboves
 
-solve :: [Brick] -> Int
-solve l = p1
+-- >>> solve $ parse "1,0,1~1,2,1\n0,0,2~2,0,2\n0,2,3~2,2,3\n0,0,4~0,2,4\n2,0,5~2,2,5\n0,1,6~2,1,6\n1,1,8~1,1,9"
+-- (5,7)
+
+solve :: [Brick] -> (Int, Int)
+solve l = (p1, p2)
   where
     bMap = M.fromList [(bId b, b) | b <- l]
-    singles = singleSupporters $ supporters underM lowered
+    supported = supportedBy underM lowered
+    singles = singleSupporters supported
     canDelete i = i `S.notMember` singles
     underM = unders l
+    supportingM = M.unionsWith (<>) [M.singleton u [b] | (b, us) <- M.toList supported, u <- us]
     lowered = dropz underM bMap
     p1 = length $ filter canDelete $ M.keys lowered
+    p2 = sum (length . allSupported supportingM supported . bId <$> lowered)
 
 main :: IO ()
 main = readFile "input/day22.txt" >>= print . solve . parse
