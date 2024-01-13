@@ -1,5 +1,5 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.18 script --optimize
+-- stack --resolver lts-18.18 script
 
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TupleSections #-}
@@ -61,6 +61,8 @@ longestWalk gm nextf = dfs M.empty M.empty [(1, 0)]
           visited' = M.insert p curlen visited
           seen x = M.notMember x visited
           valid x = seen x && inmap x && mt x /= '#' && improving x
+          -- cutting at 1000 is a hack who proved to work (30s interpreted, 4 compiled). The right way to do this is to convert the mp in a graph, weighted by distance
+          -- didn't figure this out myself though
           improving x = curlen + 1000 > M.findWithDefault 0 x best
           l' = filter valid $ nextf p (mt p)
           best' = dfs visited' best l'
