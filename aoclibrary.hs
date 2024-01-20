@@ -30,3 +30,9 @@ parse s = GameMap w h $ M.fromList [((x, y), c) | (y, line) <- zip [0 ..] l, (x,
     l = lines s
     w = length $ head l
     h = length l
+
+fromMap :: M.Map (Int, Int) c -> GameMap c
+fromMap m = GameMap w h m
+  where
+    w = maximum $ fst <$> M.keys m
+    h = maximum $ snd <$> M.keys m
