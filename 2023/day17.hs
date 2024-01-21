@@ -44,31 +44,28 @@ nextStates gm s@(State p v l) = filter (inMap gm . sPos) $ mapMaybe ns vs
       | v1 == v = Just $ State (addVector p v) v $ l + 1
       | otherwise = Just $ State (addVector p v1) v1 1
 
-minimumPath :: GameMap -> State -> Int
-minimumPath gamemap@(GameMap w h _) initial = minimum $ M.filterWithKey isBr final
+minPath :: GameMap -> Int
+minPath gamemap@(GameMap w h _) = go 0 initial initial
   where
-    stateV s = mapTile gamemap $ sPos s
-    nexts (s, v) = zip ns $ (v +) . stateV <$> ns where ns = nextStates gamemap s
-    final = go [(initial, 0)] M.empty
-    isBr s _ = (w - 1, h - 1) == sPos s
-    go edge scores
-      | null edge = scores
-      | otherwise = go edge' scores'
+    initial = M.singleton (State (0, 0) (0, 0) 0) 0
+    isFinal s = sPos s == (w - 1, h - 1)
+    findFinal s = S.filter isFinal $ M.keysSet s
+    addValue c p = (p, c + mapTile gamemap (sPos p))
+    go n costs frontier =
+      if M.null frontier
+        then minimum $ M.restrictKeys costs $ findFinal costs
+        else go (n + 1) costs' frontier'
       where
-        nextStates = S.toList $ S.fromList $ edge >>= nexts
-        edge' = mapMaybe improved nextStates
-        improved (s, v) = case scores M.!? s of
-          Nothing -> Just (s, v)
-          Just v' | v < v' -> Just (s, v)
-          _ -> Nothing
-        scores' = M.union (M.fromList edge') scores
+        improved k v = M.findWithDefault maxBound k costs > v
+        nexts (p, c) = M.fromList $ addValue c <$> nextStates gamemap p
+        newCandidates = M.unionsWith min $ nexts <$> M.toList frontier
+        frontier' = M.filterWithKey improved newCandidates
+        costs' = M.unionWith min costs frontier'
 
--- >>> solve $ parse "2413432311323\n3215453535623\n3255245654254\n3446585845452\n4546657867536\n1438598798454\n4457876987766\n3637877979653\n4654967986887\n4564679986453\n1224686865563\n2546548887735\n4322674655533"
--- 134
-
+solve :: GameMap -> Int
 solve l = p1
   where
-    p1 = minimumPath l $ State (0, 0) (0, 0) 0
+    p1 = minPath l
 
 main :: IO ()
 main = readFile "input/day17.txt" >>= print . solve . parse
