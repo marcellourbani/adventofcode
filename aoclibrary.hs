@@ -6,6 +6,7 @@ module AocLibrary (GameMap, mapTile) where
 
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
+import qualified Data.PQueue.Prio.Min as P
 
 data GameMap c = GameMap {gmW :: Int, gmH :: Int, gmMap :: M.Map (Int, Int) c} deriving (Eq)
 
@@ -36,3 +37,34 @@ fromMap m = GameMap w h m
   where
     w = maximum $ fst <$> M.keys m
     h = maximum $ snd <$> M.keys m
+
+-- Dijkstra's algorithm
+shortestPath ::
+  (Num n, Ord n, Ord state) =>
+  state ->
+  (state -> [state]) ->
+  (state -> state -> n) ->
+  (state -> Bool) ->
+  Maybe (n, [state])
+shortestPath initial nexts cost isGoal = case go M.empty iq M.empty of
+  Nothing -> Nothing
+  Just (target, dist, prevs) -> Just (dist, findpath prevs target)
+  where
+    iq = P.singleton 0 (initial, Nothing)
+    findpath prevs goal = case prevs M.!? goal of
+      Nothing -> [goal]
+      Just cur -> cur : findpath prevs cur
+    go nodes queue prevs = case P.getMin queue of
+      Nothing -> Nothing
+      Just (_, (cur, _)) | M.member cur nodes -> go nodes (P.deleteMin queue) prevs
+      Just (curdist, (cur, prev))
+        | isGoal cur -> Just (cur, curdist, prevs')
+        | otherwise -> go nodes' queue' prevs'
+        where
+          dists s = (curdist + cost cur s, (s, Just cur))
+          newentries = dists <$> filter (`M.notMember` nodes) (nexts cur)
+          queue' = P.union queue $ P.fromList newentries
+          nodes' = M.insert cur curdist nodes
+          prevs' = case prev of
+            Just p -> M.insert cur p prevs
+            _ -> prevs
