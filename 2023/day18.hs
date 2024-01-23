@@ -2,21 +2,26 @@
 -- stack --resolver lts-18.18 script
 
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImportQualifiedPost #-}
 
 module Main where
 
 import Data.Bits (xor)
+import Data.Foldable (Foldable (foldr'))
+import Data.List (partition, sort)
 import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import qualified Data.Set as S
 import Numeric (readHex)
 
-data Direction = U | D | L | R deriving (Show, Eq, Read)
+data Direction = R | D | L | U deriving (Show, Eq, Read, Enum)
 
 data Instruction = Instruction {iDir :: Direction, iLen :: Int, iColour :: Int} deriving (Show, Eq)
 
 newtype Vector = Vector {unVector :: (Int, Int)} deriving (Show, Eq)
+
+data Segment = Segment {sStart :: Vector, sVertical :: Bool, sLen :: Int} deriving (Show, Eq)
 
 instance Num Vector where
   (+) (Vector (a, b)) (Vector (c, d)) = Vector (a + c, b + d)
@@ -69,46 +74,57 @@ toGameMap l = GameMap w h $ M.fromList $ decode <$> l
     w = maxx - minx + 1
     h = maxy - miny + 1
 
-dig' :: [(Vector, Direction)] -> GameMap Char
-dig' instructions = GameMap w h $ M.fromList $ [0 .. h] >>= filled
+convertInstruction :: Instruction -> Instruction
+convertInstruction (Instruction d n c) = Instruction (toEnum $ mod c 16) (div c 16) c
+
+follow :: [Instruction] -> [Segment]
+follow = go (Vector (0, 0))
   where
-    (GameMap w h m) = head . show <$> toGameMap instructions
-    filled y = concat $ fillSegments False $ segments [] $ line y
-    line y = filter ((== y) . snd . fst) $ M.toList m
-    contiguous ((x1, _), _) ((x2, _), _) = x2 == x1 + 1
-    segments seg l = case (seg, l) of
-      ([], []) -> []
-      (_, []) -> [reverse seg]
-      ([], l1 : ls) -> segments [l1] ls
-      (s1 : _, l1 : ls)
-        | contiguous s1 l1 -> segments (l1 : seg) ls
-        | otherwise -> reverse seg : segments [l1] ls
-    lastx = fst . fst . last
-    firstx = fst . fst . head
-    isCrossing seg = case seg of
-      [] -> False
-      [_] -> True
-      ((x1, y), _) : _ -> or $ cross <$> [(x1, x2), (x2, x1)]
-        where
-          x2 = lastx seg
-          cross (a, b) = and $ M.member <$> [(a, y + 1), (b, y - 1)] <*> [m]
-    fillSegments inside segs = case segs of
+    toSegment v@(Vector (x, y)) (Instruction d n _) = case d of
+      R -> (Segment v False n, Vector (x + n, y))
+      D -> (Segment v True n, Vector (x, y + n))
+      L -> (Segment (Vector (x - n, y)) False n, Vector (x - n, y))
+      U -> (Segment (Vector (x, y - n)) True n, Vector (x, y - n))
+    go v l = case l of
       [] -> []
-      [s] -> [s]
-      s1 : s2 : ss
-        | inside' -> s1 : filler : fillSegments inside' segs'
-        | otherwise -> s1 : fillSegments inside' segs'
+      i : is -> s : go v' is
         where
-          inside' = xor inside $ isCrossing s1
-          segs' = tail segs
-          filler = [((x, snd . fst . head $ s1), '#') | x <- [lastx s1 + 1 .. firstx s2 - 1]]
+          (s, v') = toSegment v i
+
+dig2 :: [Segment] -> Int
+dig2 segs = go $ S.toAscList $ S.map snd junctions
+  where
+    verticals = filter sVertical segs
+    sjunctions (Segment (Vector (x, y)) v l) = if v then [(x, y), (x, y + l)] else []
+    vstarts = S.fromList $ unVector . sStart <$> verticals
+    crosses x1 x2 y = S.member (x1, y) vstarts `xor` S.member (x2, y) vstarts
+    junctions = S.fromList $ verticals >>= sjunctions
+    ony y (Segment (Vector (px, py)) v l) = [(px, y == py || y == py + l) | v && py <= y && y <= py + l]
+    ls y lastx l = case (lastx, l) of
+      (Nothing, []) -> 0
+      (Nothing, [_]) -> 1
+      (Nothing, (x1, False) : xs) -> ls y (Just x1) xs
+      (Just lx, (x1, False) : xs) -> x1 - lx + 1 + ls y Nothing xs
+      (Nothing, (x1, True) : (x2, True) : xs)
+        | crosses x1 x2 y -> x2 - x1 + ls y (Just x2) xs
+        | otherwise -> x2 - x1 + 1 + ls y Nothing xs
+      (Just lx, (x1, True) : (x2, True) : xs)
+        | crosses x1 x2 y -> x2 - lx + 1 + ls y Nothing xs
+        | otherwise -> ls y lastx xs
+
+    ylinesize y = ls y Nothing $ sort $ verticals >>= ony y
+    go l = case l of
+      [] -> 0
+      [y] -> ylinesize y
+      y1 : y2 : ys | y2 == y1 + 1 -> ylinesize y1 + go (y2 : ys)
+      y1 : y2 : ys -> ylinesize y1 + (y2 - y1 - 1) * ylinesize (y1 + 1) + go (y2 : ys)
 
 -- >>> solve $ parse "R 6 (#70c710)\nD 5 (#0dc571)\nL 2 (#5713f0)\nD 2 (#d2c081)\nR 2 (#59c680)\nD 2 (#411b91)\nL 5 (#8ceee2)\nU 2 (#caa173)\nL 1 (#1b58a2)\nU 2 (#caa171)\nR 2 (#7807d2)\nU 3 (#a77fa3)\nL 2 (#015232)\nU 2 (#7a21e3)"
--- 62
-
-solve l = p1
+-- (62,952408144115)
+solve l = (p1, p2)
   where
-    p1 = length . gmMap $ dig' $ tracePath (Vector (0, 0)) l
+    p1 = dig2 $ follow l
+    p2 = dig2 $ follow $ convertInstruction <$> l
 
 main :: IO ()
 main = readFile "input/day18.txt" >>= print . solve . parse
