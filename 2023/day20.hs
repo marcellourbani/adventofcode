@@ -1,95 +1,115 @@
 #!/usr/bin/env stack
--- stack --resolver lts-18.18 script --optimize
+-- stack --resolver lts-18.18 script
 
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE NoImportQualifiedPost #-}
 
 module Main where
 
 import Control.Arrow (second)
+import Data.Foldable (foldl')
+import Data.List (partition)
 import Data.List.Split (splitOn)
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
+import Debug.Trace (trace)
 
-data SignalLevel = High | Low deriving (Show, Eq, Ord, Enum)
+type SignalLevel = Bool
 
 data Signal = Signal {sFrom :: String, sTo :: String, sLevel :: SignalLevel} deriving (Show, Eq, Ord)
 
 data Module
-  = Broadcaster {bmTargets :: [String]}
-  | FlipFlop {fmName :: String, fmTargets :: [String], fmState :: SignalLevel}
-  | Conjunction {cmName :: String, cmTargets :: [String], cmInputs :: M.Map String SignalLevel}
-  | Untyped {umName :: String, umState :: SignalLevel}
+  = FlipFlop {fmName :: String}
+  | Conjunction {cmName :: String, cmInputs :: [String]}
+  | Simple {smName :: String}
   deriving (Show, Eq, Ord)
 
-data State = State {stMemory :: M.Map String Module, stHighs :: Int, stLows :: Int} deriving (Show, Eq, Ord)
+data Machine = Machine {wModules :: M.Map String Module, wWires :: M.Map String [String]} deriving (Show)
 
-mTargets :: Module -> [String]
-mTargets m = case m of
-  Broadcaster ts -> ts
-  FlipFlop _ ts _ -> ts
-  Conjunction _ ts _ -> ts
-  _ -> []
+type Memory = M.Map String SignalLevel
 
-parse :: String -> State
-parse s = State (M.fromList $ second addSources <$> rawModules) 0 0
+memoryAt :: Memory -> String -> SignalLevel
+memoryAt mem k = M.findWithDefault False k mem
+
+parse :: String -> Machine
+parse s = Machine modules wires
   where
     entries = splitOn " -> " <$> lines (filter (/= ',') s)
-    rawModules = parseModule <$> entries
-    sources n = fst <$> filter ((n `elem`) . mTargets . snd) rawModules
-    addSources m = case m of
-      Conjunction n ts _ -> m {cmInputs = M.fromList $ (,Low) <$> sources n}
-      _ -> m
+    memory = parseModule <$> entries
+    targets [k, t] = M.singleton (filter (`notElem` "%&") k) $ words t
+    wires = M.unions $ targets <$> entries
+    sources k = M.keys $ M.filter (elem k) wires
+    modules = M.fromList $ parseModule <$> entries
     parseModule [k, t] = case k of
-      "broadcaster" -> ("broadcaster", Broadcaster $ words t)
-      '%' : n -> (n, FlipFlop n (words t) Low)
-      '&' : n -> (n, Conjunction n (words t) M.empty)
+      "broadcaster" -> (k, Conjunction k [])
+      '%' : n -> (n, FlipFlop n)
+      '&' : n -> (n, Conjunction n $ sources n)
 
-readState :: State -> String -> Module
-readState s k = M.findWithDefault (Untyped k High) k $ stMemory s
+button :: Signal
+button = Signal "button" "broadcaster" False
 
-processSignal :: Signal -> State -> State
-processSignal signal@(Signal _ _ lev) state = go (incS lev [1] state) [signal] []
+processSignal :: Machine -> Memory -> Signal -> (Memory, [Signal])
+processSignal (Machine mods wires) mem (Signal src dest lev) = case M.lookup dest mods of
+  Nothing -> (mem, [])
+  Just (Simple _) -> (mem, [])
+  Just (FlipFlop _) | lev -> (mem, [])
+  Just (FlipFlop _) -> (setMem $ not current, toSend $ not current)
+  Just (Conjunction _ inputs) -> (setMem v, toSend v) where v = not $ all (memoryAt mem) inputs
   where
-    invert st = if st == High then Low else High
-    incS lev l (State mem hi lo)
-      | lev == High = State mem (hi + length l) lo
-      | otherwise = State mem hi (lo + length l)
-    go m s nxs = case (s, nxs) of
-      ([], []) -> m
-      (s1 : ss, _) -> go m' ss $ nxs <> nx' where (m', nx') = stepP m s1
-      ([], _) -> go m nxs []
-    stepP st@(State mem hi lo) s@(Signal from to lev) = case (readState st to, lev) of
-      (Broadcaster l, _) -> (incS lev l st, Signal "broadcaster" <$> l <*> [lev])
-      (FlipFlop {}, High) -> (st, [])
-      (FlipFlop n l st, Low) -> (incS lev' l $ State mem' hi lo, Signal to <$> l <*> [invert st])
-        where
-          lev' = invert st
-          mem' = M.insert n (FlipFlop n l lev') mem
-      (Untyped n High, Low) -> (State (M.insert n (Untyped n lev) mem) hi lo, [])
-      (Untyped _ _, _) -> (st, [])
-      (Conjunction n l inp, _) -> (incS lev' l $ State mem' hi lo, Signal to <$> l <*> [lev'])
-        where
-          inp' = M.insert from lev inp
-          lev' = if all (== High) inp' then Low else High
-          mem' = M.insert n (Conjunction n l inp') mem
+    targets = M.findWithDefault [] dest wires
+    toSend v = Signal dest <$> targets <*> [v]
+    setMem v = M.insert dest v mem
+    current = M.findWithDefault False dest mem
 
--- >>> solve "output" $ parse "broadcaster -> a\n%a -> inv, con\n&inv -> b\n%b -> con\n&con -> output"
+sendPulse :: Machine -> Memory -> (Memory, M.Map Bool Int)
+sendPulse machine mem = go mem [button] M.empty
+  where
+    go mem sigs count = case sigs of
+      [] -> (mem, count)
+      s : ss -> go mem' sigs' count'
+        where
+          (mem', secs) = processSignal machine mem s
+          count' = M.unionWith (+) count $ M.singleton (sLevel s) 1
+          sigs' = ss <> secs
+
+countSignals :: Machine -> Memory -> Int -> M.Map Bool Int
+countSignals machine memory = go memory (M.singleton False 0)
+  where
+    go mem count n = case n of
+      0 -> count
+      _ -> go mem' count'' (n - 1)
+        where
+          (mem', count') = sendPulse machine mem
+          count'' = M.unionWith (+) count count'
+
+calcreceive :: Machine -> String -> Int
+calcreceive machine@(Machine nodes wires) target = findFreq M.empty 0 (findLayer target) [] []
+  where
+    reversed = M.unionsWith (<>) [M.singleton v [k] | (k, vs) <- M.toList wires, v <- vs]
+    -- assumes target is preceded by a single conjunction preceded by many conjunctions
+    findLayer t = case (M.lookup t nodes, M.lookup t reversed) of
+      (_, Just [i]) -> findLayer i
+      (Just (Conjunction _ is), _) -> is
+      _ -> []
+
+    tomult = findLayer target
+    findFreq mem n targets counts sigs = case (targets, sigs) of
+      ([], _) -> product counts
+      (_, []) -> findFreq mem (n + 1) targets counts [button]
+      (_, s : ss) -> findFreq mem' n targets' counts' sigs'
+        where
+          (mem', secs) = processSignal machine mem s
+          (reached, targets') = partition (memoryAt mem') targets
+          counts' = counts <> (n <$ reached)
+          sigs' = ss <> secs
+
+-- >>> solve $ parse "broadcaster -> a\n%a -> inv, con\n&inv -> b\n%b -> con\n&con -> output"
 -- (11687500,1)
-solve out l = (p1, p2 0 l)
+
+solve :: Machine -> (Int, Int)
+solve m = (p1, p2)
   where
-    button = Signal "button" "broadcaster" Low
-    p1final = iterate (processSignal button) l !! 1000
-    state m = case m of
-      FlipFlop _ _ st -> Just st
-      Untyped _ st -> Just st
-      _ -> Nothing
-    states s = M.toList $ M.mapMaybe state (stMemory s)
-    p1 = stHighs p1final * stLows p1final
-    -- brute force will work eventually,might take ages
-    p2 n st
-      | umState (readState st out) == Low = n
-      | otherwise = p2 (n + 1) (processSignal button st)
+    p1 = product $ countSignals m M.empty 1000
+    p2 = calcreceive m "rx"
 
 main :: IO ()
-main = readFile "input/day20.txt" >>= print . solve "rx" . parse
+main = readFile "input/day20.txt" >>= print . solve . parse
