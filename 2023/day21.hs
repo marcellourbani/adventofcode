@@ -39,17 +39,30 @@ reachable gm n l
   | n == 0 = l
   | otherwise = reachable gm (n - 1) l'
   where
+    blocks = M.keysSet $ M.filter (== '#') $ gmMap gm
     neighs (x, y) = ((x,) <$> [y - 1, y + 1]) <> ((,y) <$> [x - 1, x + 1])
     candidates = l >>= neighs
-    l' = nub $ filter available $ filter (inMap gm) candidates
-    available p = mapTile '.' gm p /= '#'
+    l' = S.toList . S.fromList $ filter available $ filter (inMap gm) candidates
+    available p = S.notMember p blocks
 
 -- >>> solve 6 $ parse "...........\n.....###.#.\n.###.##..#.\n..#.#...#..\n....#.#....\n.##..S####.\n.##..#...#.\n.......##..\n.##.#.####.\n.##..##.##.\n..........."
--- 16
+-- (16,...........
+-- .....###.#.
+-- .###.##.O#.
+-- .O#O#O.O#..
+-- O.O.#.#.O..
+-- .##O.S####.
+-- .##.O#O..#.
+-- .O.O.O.##..
+-- .##.#.####.
+-- .##O.##.##.
+-- ...........
+-- )
 solve n gm = p1
   where
     seed = head $ M.keys $ M.filter (== 'S') $ gmMap gm
     p1 = length $ reachable gm n [seed]
+    p2 = gm {gmMap = M.union (gmMap gm) $ M.fromList $ (,'O') <$> filter (inMap gm) (reachable gm n [seed])}
 
 main :: IO ()
 main = readFile "input/day21.txt" >>= print . solve 64 . parse
