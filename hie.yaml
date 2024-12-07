@@ -1,4 +1,4 @@
 cradle:
   stack:
     component: 
-      - "./2022/day01.hs"
+      - "./2024/day01.hs"

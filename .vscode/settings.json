@@ -6,9 +6,9 @@
     "**/node_modules/[!@]*/**/*": true
   },
   "haskell.toolchain": {
-    "hls": "2.0.0.1",
-    "cabal": "recommended",
-    "stack": "2.11.1",
-    "ghc": "9.2.7"
+    "hls": "2.9.0.1",
+    "cabal": "3.12.1.0",
+    "stack": "3.1.1",
+    "ghc": "9.2.8"
   }
 }
