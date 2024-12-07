@@ -14,6 +14,9 @@ type Input = M.Map (V2 Int) Char
 dirVectors :: [V2 Int]
 dirVectors = [V2 x y | x <- [-1 .. 1], y <- [-1 .. 1], (x, y) /= (0, 0)]
 
+xVectors :: [V2 Int]
+xVectors = [v | v@(V2 x y) <- dirVectors, x /= 0, y /= 0]
+
 parse :: String -> Input
 parse s = M.unions [M.singleton (V2 x y) c | (y, l) <- zip [0 ..] $ lines s, (x, c) <- zip [0 ..] l]
 
@@ -32,7 +35,7 @@ part2 l = S.size $ S.fromList xs
   where
     centers = M.keys $ M.filter (== 'A') l
     isMas c v = "MAS" == word l 3 (c - v) v
-    xs = [c | d <- dirVectors, c <- centers, isMas c d, p <- perpDir d, isMas c p]
+    xs = [c | d <- xVectors, c <- centers, isMas c d, p <- perpDir d, isMas c p]
 
 perpDir :: V2 Int -> [V2 Int]
 perpDir v = filter ((== 0) . dp v) dirVectors
