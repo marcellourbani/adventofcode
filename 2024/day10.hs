@@ -37,7 +37,7 @@ parse s = GameMap w h $ M.fromList [(V2 x y, read c) | (y, line) <- zip [0 ..] l
     w = length $ head l
     h = length l
 
-directions = [V2 0, flip V2 0] <*> [-1, 1] -- (V2 <$> [-1, 1] <*> [0]) <> (V2 0 <$> [-1, 1])
+directions = [V2 0, flip V2 0] <*> [-1, 1]
 
 part1 :: GameMap Int -> Int
 part1 i@(GameMap _ _ gm) = sum $ length . S.fromList . go <$> starts
