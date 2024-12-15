@@ -3,10 +3,8 @@
 
 module Main where
 
-import Control.Lens ((^.))
-import Data.List (elemIndex)
 import Data.List.Split (splitOn)
-import Data.Maybe (catMaybes, fromJust, mapMaybe)
+import Data.Maybe (mapMaybe)
 import Linear.V2
 
 data Machine = Machine {mA :: V2 Int, mB :: V2 Int, mPrize :: V2 Int} deriving (Show)
