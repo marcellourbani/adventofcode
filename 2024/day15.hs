@@ -22,9 +22,6 @@ instance Functor GameMap where
 instance Show (GameMap Char) where
   show gm@(GameMap w h m) = unlines [[mapTile '.' gm (V2 x y) | x <- [0 .. w - 1]] | y <- [0 .. h - 1]]
 
-instance {-# OVERLAPPABLE #-} (Show c) => Show (GameMap c) where
-  show gm@(GameMap w h m) = show $ gm {gmMap = head . show <$> m}
-
 mapTile :: c -> GameMap c -> V2 Int -> c
 mapTile def gm p = fromMaybe def $ M.lookup p $ gmMap gm
 
