@@ -54,7 +54,7 @@ rot90l (V2 a b) = V2 b (-a)
 shortestPath :: (Num n, Ord n, Ord state) => state -> (state -> [(state, n)]) -> (state -> Bool) -> Maybe (n, [state])
 shortestPath initial nexts isGoal = case go M.empty iq M.empty of
   Nothing -> Nothing
-  Just (target, dist, prevs) -> Just (dist, findpath prevs target)
+  Just (target, dist, prevs) -> Just (dist, target : findpath prevs target)
   where
     iq = P.singleton 0 (initial, Nothing)
     findpath prevs goal = case prevs M.!? goal of
