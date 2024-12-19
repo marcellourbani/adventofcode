@@ -1,14 +1,15 @@
 -- couldn't find a way to import this as a module in stack scripts, will just copy and paste
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE NoImportQualifiedPost #-}
 
 module AocLibrary (GameMap, mapTile) where
 
 import Control.Lens ((^.))
-import qualified Data.Map.Strict as M
 import Data.Maybe (fromMaybe)
 import qualified Data.PQueue.Prio.Min as P
 import Linear.V2
+import qualified "containers" Data.Map.Strict as M
 
 data GameMap c = GameMap {gmW :: Int, gmH :: Int, gmMap :: M.Map (V2 Int) c} deriving (Eq)
 
