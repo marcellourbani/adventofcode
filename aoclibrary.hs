@@ -28,8 +28,8 @@ mapTile def gm p = fromMaybe def $ M.lookup p $ gmMap gm
 inMap :: GameMap c -> V2 Int -> Bool
 inMap (GameMap w h _) (V2 x y) = 0 <= x && x < w && 0 <= y && y < h
 
-drawPath :: GameMap c -> M.Map (V2 Int) c -> GameMap c
-drawPath gm m = gm {gmMap = M.union (gmMap gm) m}
+drawPath :: Bool -> GameMap c -> M.Map (V2 Int) c -> GameMap c
+drawPath drawover gm m = gm {gmMap = if drawover then M.union m (gmMap gm) else M.union (gmMap gm) m}
 
 parse :: String -> GameMap Char
 parse s = GameMap w h $ M.fromList [(V2 x y, c) | (y, line) <- zip [0 ..] l, (x, c) <- zip [0 ..] line, c /= '.']
@@ -49,6 +49,12 @@ rot90r (V2 a b) = V2 (-b) a
 
 rot90l :: (Num a) => V2 a -> V2 a -- 90^ left, with y going down
 rot90l (V2 a b) = V2 b (-a)
+
+keysOf :: (Eq c) => GameMap c -> c -> [V2 Int]
+keysOf gm g = M.keys $ M.filter (== g) $ gmMap gm
+
+directions :: [V2 Int]
+directions = (V2 0 <$> [-1, 1]) <> (V2 <$> [-1, 1] <*> [0])
 
 -- Dijkstra's algorithm
 shortestPath :: (Num n, Ord n, Ord state) => state -> (state -> [(state, n)]) -> (state -> Bool) -> Maybe (n, [state])
