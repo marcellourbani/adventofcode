@@ -41,8 +41,22 @@ parse s = GameMap w h $ M.fromList [(V2 x y, c) | (y, line) <- zip [0 ..] l, (x,
 fromMap :: M.Map (V2 Int) c -> GameMap c
 fromMap m = GameMap w h m
   where
-    w = maximum $ (^. _x) <$> M.keys m
-    h = maximum $ (^. _y) <$> M.keys m
+    w = 1 + maximum ((^. _x) <$> M.keys m)
+    h = 1 + maximum ((^. _y) <$> M.keys m)
+
+decodeDir :: Char -> V2 Int
+decodeDir c = case c of
+  '>' -> V2 1 0
+  '<' -> V2 (-1) 0
+  '^' -> V2 0 (-1)
+  'v' -> V2 0 1
+
+encodeDir :: V2 Int -> Char
+encodeDir v = case v of
+  V2 1 0 -> '>'
+  V2 (-1) 0 -> '<'
+  V2 0 (-1) -> '^'
+  V2 0 1 -> 'v'
 
 rot90r :: (Num a) => V2 a -> V2 a -- 90^ right, with y going down
 rot90r (V2 a b) = V2 (-b) a
