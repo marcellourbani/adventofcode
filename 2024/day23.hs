@@ -52,6 +52,7 @@ part2 base = intercalate "," $ S.toList longest
 -- >>> solve $ parse "kh-tc\nqp-kh\nde-cg\nka-co\nyn-aq\nqp-ub\ncg-tb\nvc-aq\ntb-ka\nwh-tc\nyn-cg\nkh-ub\nta-co\nde-co\ntc-td\ntb-wq\nwh-td\nta-ka\ntd-qp\naq-cg\nwq-ub\nub-vc\nde-ta\nwq-aq\nwq-vc\nwh-yn\nka-de\nkh-ta\nco-tc\nwh-qp\ntb-vc\ntd-yn"
 -- (7,"co,de,ka,ta")
 
+solve :: [(String, String)] -> (Int, String)
 solve l = (p1, p2)
   where
     base :: M.Map String (S.Set String)
