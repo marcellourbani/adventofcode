@@ -5,9 +5,7 @@
 
 module Main where
 
-import Control.Lens ((^.))
-import Data.List.Split (splitOn)
-import Data.Maybe (fromJust, fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import Data.PQueue.Prio.Min qualified as P
 import Linear.V2
 import "containers" Data.Map.Strict qualified as M
@@ -54,49 +52,68 @@ transitions gm (State l d)
 drawPath :: GameMap c -> M.Map (V2 Int) c -> GameMap c
 drawPath gm m = gm {gmMap = M.union (gmMap gm) m}
 
-shortestPath :: (Num n, Ord n, Ord state) => state -> (state -> [(state, n)]) -> (state -> Bool) -> Maybe (n, [state])
-shortestPath initial nexts isGoal = case go M.empty iq M.empty of
-  Nothing -> Nothing
-  Just (target, dist, prevs) -> Just (dist, findpath prevs target)
-  where
-    iq = P.singleton 0 (initial, Nothing)
-    findpath prevs goal = case prevs M.!? goal of
-      Nothing -> [goal]
-      Just cur -> cur : findpath prevs cur
-    go nodes queue prevs = case P.getMin queue of
-      Nothing -> Nothing
-      Just (_, (cur, _)) | M.member cur nodes -> go nodes (P.deleteMin queue) prevs
-      Just (curdist, (cur, prev))
-        | isGoal cur -> Just (cur, curdist, prevs')
-        | otherwise -> go nodes' queue' prevs'
-        where
-          dists (s, cost) = (curdist + cost, (s, Just cur))
-          newentries = dists <$> filter ((`M.notMember` nodes) . fst) (nexts cur)
-          queue' = P.union queue $ P.fromList newentries
-          nodes' = M.insert cur curdist nodes
-          prevs' = case prev of
-            Just p -> M.insert cur p prevs
-            _ -> prevs
+drawPath2 :: GameMap c -> c -> [State] -> GameMap c
+drawPath2 gm c l = drawPath gm $ M.fromList $ (,c) . stLoc <$> l
 
-part1 :: Input -> Int
-part1 l = cost
+expandPaths :: (Num n, Ord n, Ord state) => (state, n, M.Map state (n, S.Set state)) -> [(n, [state])]
+expandPaths (s, n, m) = go (s, [s])
   where
-    nm = drawPath l $ M.fromList $ (,'O') . stLoc <$> path -- graphical output
-    (cost, path) = fromJust $ shortestPath initial (transitions l) isGoal
+    prevs st = maybe [] (S.toList . snd) $ M.lookup st m
+    go (st, l) = case ps of
+      [] -> [(n, l)]
+      _ -> nxs >>= go
+      where
+        ps = prevs st
+        nxs = zip ps $ (: l) <$> ps
+
+shortestPaths :: (Num n, Ord n, Ord state) => state -> (state -> [(state, n)]) -> (state -> Bool) -> ([(state, n, M.Map state (n, S.Set state))] -> Bool) -> [(state, n, M.Map state (n, S.Set state))]
+shortestPaths initial nexts isGoal stopSearch = solutions
+  where
+    solutions = go iq M.empty Nothing []
+    iq = P.singleton 0 (initial, Nothing)
+    joinSources (newdist, newset) (olddist, oldset)
+      | newdist == olddist = (olddist, S.union newset oldset)
+      | otherwise = (olddist, oldset)
+    -- remove states not included in any solutions
+    relevants targ nodes = relevants' [targ] nodes $ M.restrictKeys nodes $ S.singleton targ
+    relevants' targs nodes acc = case targs' of
+      [] -> acc
+      _ -> relevants' targs' nodes acc'
+      where
+        prevs = S.unions $ snd <$> mapMaybe (`M.lookup` nodes) targs
+        targs' = filter (`M.notMember` acc) $ S.toList prevs
+        intarg k _ = k `elem` targs'
+        acc' = M.union acc $ M.filterWithKey intarg nodes
+    go queue nodes minD acc = case P.getMin queue of
+      Nothing -> acc
+      Just (curdist, (cur, prev))
+        | tooLong -> acc
+        | M.member cur nodes -> go queue' nodes' minD acc
+        | isGoal cur && stopSearch acc' -> acc'
+        | isGoal cur -> go queue' nodes (Just curdist) acc' -- goal might not be unique
+        | otherwise -> go queue'' nodes' minD acc
+        where
+          acc' = (cur, curdist, relevants cur nodes') : acc
+          nodes' = M.insertWith joinSources cur (curdist, S.fromList $ catMaybes [prev]) nodes
+          dists (s, cost) = (curdist + cost, (s, Just cur))
+          newentries = dists <$> filter ((`M.notMember` nodes') . fst) (nexts cur)
+          queue' = P.deleteMin queue
+          queue'' = P.union queue' $ P.fromList newentries
+          tooLong = maybe False (< curdist) minD
+
+-- >>> solve $ parse "###############\n#.......#....E#\n#.#.###.#.###.#\n#.....#.#...#.#\n#.###.#####.#.#\n#.#.#.......#.#\n#.#.#####.###.#\n#...........#.#\n###.#.#####.#.#\n#...#.....#.#.#\n#.#.#.###.#.#.#\n#.....#...#.#.#\n#.###.#.#.#.#.#\n#S..#.....#...#\n###############"
+-- (7036,45)
+
+solve :: GameMap Char -> (Int, Int)
+solve l = (p1, p2)
+  where
+    (_, p1, m) = head paths
+    p2 = S.size $ S.fromList $ stLoc <$> M.keys m
+    solutionMap = drawPath2 l 'O' $ M.keys m -- to show all touched locations
+    paths = shortestPaths initial (transitions l) isGoal (const True)
     sl = head $ M.keys $ M.filter (== 'S') $ gmMap l
     initial = State sl $ V2 1 0
     isGoal (State p _) = mapTile '.' l p == 'E'
-
--- part2 :: Input -> Int
-part2 s = 0
-
--- >>> solve $ parse "###############\n#.......#....E#\n#.#.###.#.###.#\n#.....#.#...#.#\n#.###.#####.#.#\n#.#.#.......#.#\n#.#.#####.###.#\n#...........#.#\n###.#.#####.#.#\n#...#.....#.#.#\n#.#.#.###.#.#.#\n#.....#...#.#.#\n#.###.#.#.#.#.#\n#S..#.....#...#\n###############"
--- (7036,0)
-
-solve l = (p1, p2)
-  where
-    p1 = part1 l
-    p2 = part2 l
 
 main :: IO ()
 main = readFile "input/day16.txt" >>= print . solve . parse

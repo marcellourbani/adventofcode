@@ -6,10 +6,11 @@
 module AocLibrary (GameMap, mapTile) where
 
 import Control.Lens ((^.))
-import Data.Maybe (fromMaybe)
+import Data.Maybe (catMaybes, fromMaybe, mapMaybe)
 import qualified Data.PQueue.Prio.Min as P
 import Linear.V2
 import qualified "containers" Data.Map.Strict as M
+import qualified "containers" Data.Set as S
 
 data GameMap c = GameMap {gmW :: Int, gmH :: Int, gmMap :: M.Map (V2 Int) c} deriving (Eq)
 
@@ -70,7 +71,7 @@ keysOf gm g = M.keys $ M.filter (== g) $ gmMap gm
 directions :: [V2 Int]
 directions = (V2 0 <$> [-1, 1]) <> (V2 <$> [-1, 1] <*> [0])
 
--- Dijkstra's algorithm
+-- Dijkstra's algorithm - single solution
 shortestPath :: (Num n, Ord n, Ord state) => state -> (state -> [(state, n)]) -> (state -> Bool) -> Maybe (n, [state])
 shortestPath initial nexts isGoal = case go M.empty iq M.empty of
   Nothing -> Nothing
@@ -94,3 +95,50 @@ shortestPath initial nexts isGoal = case go M.empty iq M.empty of
           prevs' = case prev of
             Just p -> M.insert cur p prevs
             _ -> prevs
+
+-- Dijkstra's algorithm - all solutions
+expandPaths :: (Num n, Ord n, Ord state) => (state, n, M.Map state (n, S.Set state)) -> [(n, [state])]
+expandPaths (s, n, m) = go (s, [s])
+  where
+    prevs st = maybe [] (S.toList . snd) $ M.lookup st m
+    go (st, l) = case ps of
+      [] -> [(n, l)]
+      _ -> nxs >>= go
+      where
+        ps = prevs st
+        nxs = zip ps $ (: l) <$> ps
+
+shortestPaths :: (Num n, Ord n, Ord state) => state -> (state -> [(state, n)]) -> (state -> Bool) -> ([(state, n, M.Map state (n, S.Set state))] -> Bool) -> [(state, n, M.Map state (n, S.Set state))]
+shortestPaths initial nexts isGoal stopSearch = solutions
+  where
+    solutions = go iq M.empty Nothing []
+    iq = P.singleton 0 (initial, Nothing)
+    joinSources (newdist, newset) (olddist, oldset)
+      | newdist == olddist = (olddist, S.union newset oldset)
+      | otherwise = (olddist, oldset)
+    -- remove states not included in any solutions
+    relevants targ nodes = relevants' [targ] nodes $ M.restrictKeys nodes $ S.singleton targ
+    relevants' targs nodes acc = case targs' of
+      [] -> acc
+      _ -> relevants' targs' nodes acc'
+      where
+        prevs = S.unions $ snd <$> mapMaybe (`M.lookup` nodes) targs
+        targs' = filter (`M.notMember` acc) $ S.toList prevs
+        intarg k _ = k `elem` targs'
+        acc' = M.union acc $ M.filterWithKey intarg nodes
+    go queue nodes minD acc = case P.getMin queue of
+      Nothing -> acc
+      Just (curdist, (cur, prev))
+        | tooLong -> acc
+        | M.member cur nodes -> go queue' nodes' minD acc
+        | isGoal cur && stopSearch acc' -> acc'
+        | isGoal cur -> go queue' nodes (Just curdist) acc' -- goal might not be unique
+        | otherwise -> go queue'' nodes' minD acc
+        where
+          acc' = (cur, curdist, relevants cur nodes') : acc
+          nodes' = M.insertWith joinSources cur (curdist, S.fromList $ catMaybes [prev]) nodes
+          dists (s, cost) = (curdist + cost, (s, Just cur))
+          newentries = dists <$> filter ((`M.notMember` nodes') . fst) (nexts cur)
+          queue' = P.deleteMin queue
+          queue'' = P.union queue' $ P.fromList newentries
+          tooLong = maybe False (< curdist) minD
